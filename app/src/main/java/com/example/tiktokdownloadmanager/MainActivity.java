@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.*;
 import android.view.Gravity;
+import android.view.View;
 import android.webkit.*;
 import android.widget.*;
 
