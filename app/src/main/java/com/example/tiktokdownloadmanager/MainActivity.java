@@ -3,16 +3,17 @@ package com.example.tiktokdownloadmanager;
 import android.Manifest;
 import android.app.Activity;
 import android.app.DownloadManager;
-import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.*;
-import android.view.*;
+import android.view.Gravity;
 import android.webkit.*;
 import android.widget.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
@@ -20,7 +21,6 @@ public class MainActivity extends Activity {
             "https://savetiktok.to/id";
 
     private static final int REQ_STORAGE = 501;
-
     private static final int MAX_RESULT_CHECKS = 45;
 
     private EditText input;
@@ -39,23 +39,21 @@ public class MainActivity extends Activity {
     private boolean downloadStarted = false;
 
     private int resultChecks = 0;
-    private int finalButtonClicks = 0;
 
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
     @Override
-    public void onCreate(Bundle b) {
-        super.onCreate(b);
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
         buildUi();
-
         requestStorageIfNeeded();
     }
 
     private void buildUi() {
 
-        ScrollView sc =
+        ScrollView scrollView =
                 new ScrollView(this);
 
         LinearLayout root =
@@ -66,10 +64,7 @@ public class MainActivity extends Activity {
         );
 
         root.setPadding(
-                22,
-                22,
-                22,
-                22
+                22, 22, 22, 22
         );
 
         root.setBackgroundColor(
@@ -126,21 +121,21 @@ public class MainActivity extends Activity {
                 )
         );
 
-        LinearLayout.LayoutParams cp =
+        LinearLayout.LayoutParams clearParams =
                 new LinearLayout.LayoutParams(
                         0,
                         62,
                         1
                 );
 
-        cp.setMargins(
-                10,
-                0,
-                0,
-                0
+        clearParams.setMargins(
+                10, 0, 0, 0
         );
 
-        row.addView(clear, cp);
+        row.addView(
+                clear,
+                clearParams
+        );
 
         root.addView(row);
 
@@ -169,9 +164,9 @@ public class MainActivity extends Activity {
                 text(
                         "Aplikasi memproses URL melalui halaman " +
                         "SaveTikTok di WebView. CAPTCHA, login, " +
-                        "rate limit, dan mekanisme keamanan " +
-                        "tidak dilewati. Jika situs meminta " +
-                        "tindakan manual, selesaikan secara manual.",
+                        "rate limit, dan mekanisme keamanan tidak " +
+                        "dilewati. Jika situs meminta tindakan " +
+                        "manual, selesaikan secara manual.",
                         14
                 )
         );
@@ -189,7 +184,7 @@ public class MainActivity extends Activity {
                 new WebView(this);
 
         webView.setVisibility(
-                View.GONE
+                WebView.GONE
         );
 
         root.addView(
@@ -214,39 +209,42 @@ public class MainActivity extends Activity {
                 v -> startAll()
         );
 
-        sc.addView(root);
+        scrollView.addView(root);
 
-        setContentView(sc);
+        setContentView(scrollView);
     }
 
     private void configureWebView() {
 
-        WebSettings s =
+        WebSettings settings =
                 webView.getSettings();
 
-        s.setJavaScriptEnabled(true);
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
 
-        s.setDomStorageEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(true);
 
-        s.setDatabaseEnabled(true);
-
-        s.setAllowFileAccess(false);
-
-        s.setAllowContentAccess(true);
-
-        s.setSupportMultipleWindows(false);
-
-        s.setJavaScriptCanOpenWindowsAutomatically(
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(
                 false
         );
 
-        s.setUserAgentString(
+        settings.setUserAgentString(
                 "Mozilla/5.0 (Linux; Android 12) " +
                 "AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) " +
                 "Chrome/140.0 Mobile Safari/537.36"
         );
 
+        /*
+         * JS Bridge V5.1
+         *
+         * Bagian ini sengaja didefinisikan
+         * secara eksplisit agar compiler
+         * mengenali class JsBridge.
+         */
         webView.addJavascriptInterface(
                 new JsBridge(),
                 "AndroidBridge"
@@ -257,15 +255,15 @@ public class MainActivity extends Activity {
 
                     @Override
                     public boolean shouldOverrideUrlLoading(
-                            WebView v,
-                            WebResourceRequest r
+                            WebView view,
+                            WebResourceRequest request
                     ) {
                         return false;
                     }
 
                     @Override
                     public void onPageFinished(
-                            WebView v,
+                            WebView view,
                             String url
                     ) {
 
@@ -303,13 +301,13 @@ public class MainActivity extends Activity {
 
                     @Override
                     public void onReceivedError(
-                            WebView v,
-                            WebResourceRequest r,
-                            WebResourceError e
+                            WebView view,
+                            WebResourceRequest request,
+                            WebResourceError error
                     ) {
 
                         if (
-                                r.isForMainFrame()
+                                request.isForMainFrame()
                         ) {
 
                             webStatus.setText(
@@ -325,13 +323,9 @@ public class MainActivity extends Activity {
         );
 
         /*
-         * PENTING:
-         *
-         * Kita TIDAK mengambil href secara manual.
-         *
-         * Kita menunggu WebView sendiri memicu
-         * DownloadListener setelah tombol download
-         * final ditekan.
+         * DownloadListener hanya dipanggil
+         * ketika WebView benar-benar menerima
+         * proses download.
          */
         webView.setDownloadListener(
                 (
@@ -340,17 +334,96 @@ public class MainActivity extends Activity {
                         contentDisposition,
                         mimeType,
                         contentLength
-                ) -> {
-
-                    handleWebDownload(
-                            url,
-                            userAgent,
-                            contentDisposition,
-                            mimeType,
-                            contentLength
-                    );
-                }
+                ) -> handleWebDownload(
+                        url,
+                        userAgent,
+                        contentDisposition,
+                        mimeType,
+                        contentLength
+                )
         );
+    }
+
+    /*
+     * ============================================================
+     * JS BRIDGE
+     * ============================================================
+     *
+     * Ini adalah bagian yang sebelumnya hilang
+     * sehingga muncul:
+     *
+     * cannot find symbol
+     * class JsBridge
+     */
+    private class JsBridge {
+
+        @android.webkit.JavascriptInterface
+        public void status(
+                final String message
+        ) {
+
+            runOnUiThread(
+                    () -> {
+
+                        if (
+                                processing &&
+                                !downloadStarted
+                        ) {
+
+                            webStatus.setText(
+                                    "WebView: " +
+                                    message
+                            );
+                        }
+                    }
+            );
+        }
+
+        @android.webkit.JavascriptInterface
+        public void downloadLink(
+                final String url
+        ) {
+
+            runOnUiThread(
+                    () -> {
+
+                        if (
+                                !processing ||
+                                downloadStarted
+                        ) {
+                            return;
+                        }
+
+                        if (
+                                url == null ||
+                                url.trim().isEmpty()
+                        ) {
+                            return;
+                        }
+
+                        /*
+                         * V5.1 tidak lagi mengambil
+                         * sembarang href sebagai MP4.
+                         *
+                         * Fungsi ini hanya digunakan
+                         * untuk link yang memang dikenali
+                         * sebagai hasil video oleh JS.
+                         */
+                        downloadStarted = true;
+
+                        webStatus.setText(
+                                "WebView: link video ditemukan"
+                        );
+
+                        enqueueDownload(
+                                url,
+                                null,
+                                "video/mp4",
+                                null
+                        );
+                    }
+            );
+        }
     }
 
     private boolean isSaveTikTokPage(
@@ -360,8 +433,7 @@ public class MainActivity extends Activity {
         try {
 
             String host =
-                    Uri.parse(url)
-                            .getHost();
+                    Uri.parse(url).getHost();
 
             return host != null &&
                     host.toLowerCase(
@@ -378,7 +450,7 @@ public class MainActivity extends Activity {
 
     private void loadQueue() {
 
-        LinkedHashSet<String> set =
+        LinkedHashSet<String> uniqueUrls =
                 new LinkedHashSet<>();
 
         String raw =
@@ -386,36 +458,33 @@ public class MainActivity extends Activity {
                         .toString();
 
         for (
-                String x :
+                String line :
                 raw.split("\\r?\\n")
         ) {
 
-            x = x.trim();
+            String url =
+                    line.trim();
 
             if (
-                    x.startsWith("http://") ||
-                    x.startsWith("https://")
+                    url.startsWith("http://") ||
+                    url.startsWith("https://")
             ) {
 
-                set.add(x);
+                uniqueUrls.add(url);
             }
         }
 
         urls.clear();
 
-        urls.addAll(set);
+        urls.addAll(uniqueUrls);
 
         currentIndex = -1;
 
         processing = false;
-
         submitClicked = false;
-
         downloadStarted = false;
 
         resultChecks = 0;
-
-        finalButtonClicks = 0;
 
         queue.removeAllViews();
 
@@ -435,28 +504,25 @@ public class MainActivity extends Activity {
     }
 
     private void addCard(
-            int i,
+            int index,
             String url
     ) {
 
-        LinearLayout c =
+        LinearLayout card =
                 new LinearLayout(this);
 
-        c.setOrientation(
+        card.setOrientation(
                 LinearLayout.VERTICAL
         );
 
-        c.setPadding(
-                14,
-                14,
-                14,
-                14
+        card.setPadding(
+                14, 14, 14, 14
         );
 
-        TextView st =
+        TextView status =
                 text(
                         "#" +
-                        (i + 1) +
+                        (index + 1) +
                         "  Menunggu",
                         16
                 );
@@ -469,38 +535,36 @@ public class MainActivity extends Activity {
 
         link.setMaxLines(3);
 
-        Button p =
+        Button process =
                 button(
                         "Proses Link Ini"
                 );
 
-        p.setOnClickListener(
-                v -> startSingle(i)
+        process.setOnClickListener(
+                v -> startSingle(index)
         );
 
-        c.addView(st);
+        card.addView(status);
+        card.addView(link);
+        card.addView(process);
 
-        c.addView(link);
+        card.setTag(status);
 
-        c.addView(p);
-
-        c.setTag(st);
-
-        queue.addView(c);
+        queue.addView(card);
     }
 
     private void startSingle(
-            int i
+            int index
     ) {
 
         if (
-                i < 0 ||
-                i >= urls.size()
+                index < 0 ||
+                index >= urls.size()
         ) {
             return;
         }
 
-        currentIndex = i;
+        currentIndex = index;
 
         processing = true;
 
@@ -510,14 +574,12 @@ public class MainActivity extends Activity {
 
         resultChecks = 0;
 
-        finalButtonClicks = 0;
-
         webStatus.setText(
                 "WebView: membuka SaveTikTok..."
         );
 
         setStatus(
-                i,
+                index,
                 "Memproses"
         );
 
@@ -561,7 +623,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String u =
+        String safeUrl =
                 tiktokUrl
                         .replace(
                                 "\\",
@@ -580,18 +642,19 @@ public class MainActivity extends Activity {
                                 "\\r"
                         );
 
-        String js =
+        String javascript =
                 "(function(){"
 
-                + "var u='" + u + "';"
+                + "var u='" +
+                safeUrl +
+                "';"
 
-                + "var els=[].slice.call("
+                + "var fields=[].slice.call("
                 + "document.querySelectorAll("
                 + "'input,textarea'"
-                + ")"
-                + ");"
+                + "));"
 
-                + "var el=els.find(function(e){"
+                + "var field=fields.find(function(e){"
 
                 + "var p=("
                 + "(e.placeholder||'')+' '"
@@ -606,10 +669,10 @@ public class MainActivity extends Activity {
 
                 + "});"
 
-                + "if(!el&&els.length)"
-                + "el=els[0];"
+                + "if(!field&&fields.length)"
+                + "field=fields[0];"
 
-                + "if(!el){"
+                + "if(!field){"
 
                 + "AndroidBridge.status("
                 + "'Kolom URL tidak ditemukan'"
@@ -620,49 +683,57 @@ public class MainActivity extends Activity {
                 + "}"
 
                 + "var proto="
-                + "Object.getPrototypeOf(el);"
+                + "Object.getPrototypeOf(field);"
 
-                + "var d="
+                + "var descriptor="
                 + "Object.getOwnPropertyDescriptor("
                 + "proto,"
                 + "'value'"
                 + ");"
 
-                + "if(d&&d.set){"
-                + "d.set.call(el,u);"
+                + "if(descriptor&&descriptor.set){"
+
+                + "descriptor.set.call("
+                + "field,"
+                + "u"
+                + ");"
+
                 + "}else{"
-                + "el.value=u;"
+
+                + "field.value=u;"
+
                 + "}"
 
-                + "el.dispatchEvent("
+                + "field.dispatchEvent("
                 + "new Event("
                 + "'input',"
                 + "{bubbles:true}"
                 + ")"
                 + ");"
 
-                + "el.dispatchEvent("
+                + "field.dispatchEvent("
                 + "new Event("
                 + "'change',"
                 + "{bubbles:true}"
                 + ")"
                 + ");"
 
-                + "el.focus();"
+                + "field.focus();"
 
-                + "var btns=[].slice.call("
+                + "var buttons=[].slice.call("
                 + "document.querySelectorAll("
                 + "'button,input[type=submit],"
                 + "input[type=button],a'"
                 + ")"
                 + ");"
 
-                + "var b=btns.find(function(x){"
+                + "var button=buttons.find("
+                + "function(e){"
 
                 + "var t=("
-                + "x.innerText||"
-                + "x.value||"
-                + "x.textContent||''"
+                + "e.innerText||"
+                + "e.value||"
+                + "e.textContent||''"
                 + ").toLowerCase()"
                 + ".trim();"
 
@@ -671,9 +742,9 @@ public class MainActivity extends Activity {
 
                 + "});"
 
-                + "if(b){"
+                + "if(button){"
 
-                + "b.click();"
+                + "button.click();"
 
                 + "AndroidBridge.status("
                 + "'URL dimasukkan dan tombol Unduh ditekan'"
@@ -687,22 +758,20 @@ public class MainActivity extends Activity {
                 + "'Tombol Unduh tidak ditemukan'"
                 + ");"
 
-                + "return 'INPUT_ONLY';"
+                + "return 'NO_BUTTON';"
 
                 + "})()";
 
         webView.evaluateJavascript(
-                js,
+                javascript,
                 value -> {
 
                     submitClicked = true;
 
                     resultChecks = 0;
 
-                    finalButtonClicks = 0;
-
                     webStatus.setText(
-                            "WebView: menunggu hasil..."
+                            "WebView: menunggu hasil video..."
                     );
 
                     handler.postDelayed(
@@ -714,14 +783,12 @@ public class MainActivity extends Activity {
     }
 
     /*
-     * Tahap utama V5.
+     * ============================================================
+     * SCAN HASIL
+     * ============================================================
      *
-     * Kita tidak mengambil href.
-     *
-     * Kita hanya MENGKLIK elemen hasil.
-     *
-     * DownloadListener yang akan menangkap
-     * download sebenarnya.
+     * V5.1 tidak mengambil sembarang href.
+     * Kita mencari tombol hasil dan mengkliknya.
      */
     private void scanResultPage() {
 
@@ -734,7 +801,7 @@ public class MainActivity extends Activity {
         }
 
         if (
-                resultChecks++ >=
+                resultChecks >=
                 MAX_RESULT_CHECKS
         ) {
 
@@ -750,6 +817,8 @@ public class MainActivity extends Activity {
             return;
         }
 
+        resultChecks++;
+
         webStatus.setText(
                 "WebView: mencari MP4/HD... " +
                 resultChecks +
@@ -757,10 +826,10 @@ public class MainActivity extends Activity {
                 MAX_RESULT_CHECKS
         );
 
-        String js =
+        String javascript =
                 "(function(){"
 
-                + "function txt(e){"
+                + "function text(e){"
 
                 + "return (("
                 + "e.innerText||"
@@ -790,59 +859,46 @@ public class MainActivity extends Activity {
 
                 + "function score(e){"
 
-                + "var t=txt(e);"
+                + "var t=text(e);"
 
-                + "var p=e.parentElement"
-                + "?txt(e.parentElement):'';"
+                + "var parent=e.parentElement"
+                + "?text(e.parentElement):'';"
 
-                + "var g=t+' '+p;"
+                + "var all=t+' '+parent;"
 
-                + "var s=0;"
+                + "var score=0;"
 
-                + "if(/\\bmp4\\b/.test(g))"
-                + "s+=120;"
+                + "if(/\\bmp4\\b/.test(all))"
+                + "score+=120;"
 
-                + "if(/\\bhd\\b/.test(g))"
-                + "s+=100;"
+                + "if(/\\bhd\\b/.test(all))"
+                + "score+=100;"
 
-                + "if(/\\b4k\\b/.test(g))"
-                + "s+=90;"
+                + "if(/\\b4k\\b/.test(all))"
+                + "score+=90;"
 
-                + "if(/video/.test(g))"
-                + "s+=50;"
+                + "if(/video/.test(all))"
+                + "score+=50;"
 
                 + "if(/download|unduh|"
-                + "tải xuống/.test(g))"
-                + "s+=40;"
+                + "tải xuống/.test(all))"
+                + "score+=40;"
 
-                + "if(/without watermark|"
-                + "no watermark|"
-                + "tanpa watermark|"
-                + "tanpa logo/.test(g))"
-                + "s+=20;"
-
-                + "if(/mp3|audio|music/.test(g))"
-                + "s-=200;"
+                + "if(/mp3|audio|music/.test(all))"
+                + "score-=200;"
 
                 + "if(/share|facebook|"
                 + "instagram|twitter|"
-                + "telegram/.test(g))"
-                + "s-=200;"
+                + "telegram|whatsapp/.test(all))"
+                + "score-=200;"
 
-                + "return s;"
+                + "return score;"
 
                 + "}"
 
-                /*
-                 * 1. Cari anchor/button hasil.
-                 *
-                 * Tidak membaca href.
-                 * Hanya klik.
-                 */
-                + "var els=[].slice.call("
+                + "var elements=[].slice.call("
                 + "document.querySelectorAll("
-                + "'.download a,"
-                + "a,button,"
+                + "'a,button,"
                 + "input[type=button],"
                 + "input[type=submit],"
                 + "[role=button]'"
@@ -851,7 +907,7 @@ public class MainActivity extends Activity {
 
                 + "var candidates=[];"
 
-                + "els.forEach(function(e){"
+                + "elements.forEach(function(e){"
 
                 + "if(!visible(e))return;"
 
@@ -864,8 +920,8 @@ public class MainActivity extends Activity {
                 + "if(s>=100){"
 
                 + "candidates.push({"
-                + "e:e,"
-                + "s:s"
+                + "element:e,"
+                + "score:s"
                 + "});"
 
                 + "}"
@@ -873,37 +929,32 @@ public class MainActivity extends Activity {
                 + "});"
 
                 + "candidates.sort(function(a,b){"
-                + "return b.s-a.s;"
+                + "return b.score-a.score;"
                 + "});"
 
                 + "if(candidates.length){"
 
-                + "var best="
-                + "candidates[0].e;"
+                + "var selected="
+                + "candidates[0].element;"
 
-                + "if(best.dataset)"
-                + "best.dataset.tdmClicked='1';"
+                + "if(selected.dataset){"
 
-                + "best.click();"
+                + "selected.dataset.tdmClicked='1';"
+
+                + "}"
+
+                + "selected.click();"
 
                 + "AndroidBridge.status("
-                + "'Tombol hasil MP4/HD diklik'"
+                + "'Tombol hasil MP4/HD ditekan'"
                 + ");"
 
                 + "return 'CLICK';"
 
                 + "}"
 
-                /*
-                 * 2. Jika ada pilihan MP4 tetapi
-                 * belum ada HD, klik MP4 dahulu.
-                 */
-                + "var mp4=[].slice.call("
-                + "document.querySelectorAll("
-                + "'.download a,a,button,"
-                + "[role=button]'"
-                + ")"
-                + ").find(function(e){"
+                + "var mp4=elements.find("
+                + "function(e){"
 
                 + "if(!visible(e))return false;"
 
@@ -911,7 +962,7 @@ public class MainActivity extends Activity {
                 + "e.dataset.tdmClicked==='1')"
                 + "return false;"
 
-                + "var t=txt(e);"
+                + "var t=text(e);"
 
                 + "return /\\bmp4\\b/.test(t)"
                 + "&&!/mp3|audio/.test(t);"
@@ -920,8 +971,11 @@ public class MainActivity extends Activity {
 
                 + "if(mp4){"
 
-                + "if(mp4.dataset)"
+                + "if(mp4.dataset){"
+
                 + "mp4.dataset.tdmClicked='1';"
+
+                + "}"
 
                 + "mp4.click();"
 
@@ -933,16 +987,8 @@ public class MainActivity extends Activity {
 
                 + "}"
 
-                /*
-                 * 3. Jika kualitas HD tersedia,
-                 * klik HD.
-                 */
-                + "var hd=[].slice.call("
-                + "document.querySelectorAll("
-                + "'.download a,a,button,"
-                + "[role=button]'"
-                + ")"
-                + ").find(function(e){"
+                + "var quality=elements.find("
+                + "function(e){"
 
                 + "if(!visible(e))return false;"
 
@@ -950,19 +996,22 @@ public class MainActivity extends Activity {
                 + "e.dataset.tdmClicked==='1')"
                 + "return false;"
 
-                + "var t=txt(e);"
+                + "var t=text(e);"
 
                 + "return /\\bhd\\b|\\b4k\\b/.test(t)"
                 + "&&!/mp3|audio/.test(t);"
 
                 + "});"
 
-                + "if(hd){"
+                + "if(quality){"
 
-                + "if(hd.dataset)"
-                + "hd.dataset.tdmClicked='1';"
+                + "if(quality.dataset){"
 
-                + "hd.click();"
+                + "quality.dataset.tdmClicked='1';"
+
+                + "}"
+
+                + "quality.click();"
 
                 + "AndroidBridge.status("
                 + "'Pilihan kualitas HD/4K ditemukan'"
@@ -972,12 +1021,10 @@ public class MainActivity extends Activity {
 
                 + "}"
 
-                /*
-                 * 4. CAPTCHA.
-                 */
-                + "var body=txt(document.body);"
+                + "var body=text(document.body);"
 
-                + "if(/captcha|verify you are human|"
+                + "if(/captcha|"
+                + "verify you are human|"
                 + "verifikasi bahwa anda manusia/"
                 + ".test(body)){"
 
@@ -994,10 +1041,13 @@ public class MainActivity extends Activity {
                 + "})()";
 
         webView.evaluateJavascript(
-                js,
+                javascript,
                 value -> {
 
-                    if (downloadStarted) {
+                    if (
+                            !processing ||
+                            downloadStarted
+                    ) {
                         return;
                     }
 
@@ -1010,11 +1060,11 @@ public class MainActivity extends Activity {
     }
 
     /*
-     * Ini bagian penting V5.
-     *
-     * Hanya file yang benar-benar diberikan
-     * WebView sebagai download yang diproses.
+     * ============================================================
+     * DOWNLOAD LISTENER
+     * ============================================================
      */
+
     private void handleWebDownload(
             String url,
             String userAgent,
@@ -1045,7 +1095,7 @@ public class MainActivity extends Activity {
                         );
 
         /*
-         * Jangan menyimpan HTML sebagai MP4.
+         * Jangan simpan HTML sebagai MP4.
          */
         if (
                 mime.contains("text/html") ||
@@ -1053,25 +1103,21 @@ public class MainActivity extends Activity {
         ) {
 
             webStatus.setText(
-                    "WebView: respons bukan file video"
+                    "WebView: respons bukan video"
             );
 
             return;
         }
 
-        /*
-         * Jika MIME jelas bukan video/audio/file
-         * yang relevan, jangan paksa menjadi MP4.
-         */
-        boolean video =
+        boolean isVideo =
                 mime.startsWith("video/") ||
                 mime.contains("mp4") ||
                 disposition.contains(".mp4");
 
-        if (!video) {
+        if (!isVideo) {
 
             webStatus.setText(
-                    "WebView: download bukan video MP4"
+                    "WebView: file bukan video MP4"
             );
 
             return;
@@ -1101,7 +1147,7 @@ public class MainActivity extends Activity {
     private void enqueueDownload(
             String url,
             String userAgent,
-            String mime,
+            String mimeType,
             String contentDisposition
     ) {
 
@@ -1142,41 +1188,44 @@ public class MainActivity extends Activity {
                 return;
             }
 
-            DownloadManager dm =
+            DownloadManager manager =
                     (DownloadManager)
                             getSystemService(
                                     DOWNLOAD_SERVICE
                             );
 
-            DownloadManager.Request r =
+            DownloadManager.Request request =
                     new DownloadManager.Request(
                             uri
                     );
 
-            r.setTitle(
+            request.setTitle(
                     "TikTok " +
                     (currentIndex + 1)
             );
 
-            r.setDescription(
+            request.setDescription(
                     "TikTok Download Manager"
             );
 
-            r.setNotificationVisibility(
+            request.setNotificationVisibility(
                     DownloadManager
                             .Request
                             .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             );
 
             if (
-                    mime != null &&
-                    !mime.isEmpty()
+                    mimeType != null &&
+                    !mimeType.isEmpty()
             ) {
 
-                r.setMimeType(mime);
+                request.setMimeType(
+                        mimeType
+                );
+
             } else {
 
-                r.setMimeType(
+                request.setMimeType(
                         "video/mp4"
                 );
             }
@@ -1186,7 +1235,7 @@ public class MainActivity extends Activity {
                     !userAgent.isEmpty()
             ) {
 
-                r.addRequestHeader(
+                request.addRequestHeader(
                         "User-Agent",
                         userAgent
                 );
@@ -1202,13 +1251,13 @@ public class MainActivity extends Activity {
                     !cookie.isEmpty()
             ) {
 
-                r.addRequestHeader(
+                request.addRequestHeader(
                         "Cookie",
                         cookie
                 );
             }
 
-            r.addRequestHeader(
+            request.addRequestHeader(
                     "Referer",
                     SAVE_URL
             );
@@ -1217,7 +1266,7 @@ public class MainActivity extends Activity {
                     URLUtil.guessFileName(
                             url,
                             contentDisposition,
-                            mime
+                            mimeType
                     );
 
             if (
@@ -1245,24 +1294,25 @@ public class MainActivity extends Activity {
                 filename += ".mp4";
             }
 
-            r.setDestinationInExternalPublicDir(
-                    Environment.DIRECTORY_DOWNLOADS,
+            request.setDestinationInExternalPublicDir(
+                    android.os.Environment
+                            .DIRECTORY_DOWNLOADS,
                     filename
             );
 
-            dm.enqueue(r);
+            manager.enqueue(request);
 
-            int done =
+            int completedIndex =
                     currentIndex;
 
             setStatus(
-                    done,
+                    completedIndex,
                     "Download dimulai"
             );
 
             progress.setText(
                     "Progress: " +
-                    (done + 1) +
+                    (completedIndex + 1) +
                     " / " +
                     urls.size()
             );
@@ -1277,7 +1327,7 @@ public class MainActivity extends Activity {
                         downloadStarted = false;
 
                         int next =
-                                done + 1;
+                                completedIndex + 1;
 
                         if (
                                 next < urls.size()
@@ -1334,8 +1384,6 @@ public class MainActivity extends Activity {
 
         resultChecks = 0;
 
-        finalButtonClicks = 0;
-
         queue.removeAllViews();
 
         progress.setText(
@@ -1348,31 +1396,31 @@ public class MainActivity extends Activity {
     }
 
     private void setStatus(
-            int i,
-            String s
+            int index,
+            String status
     ) {
 
         if (
-                i < 0 ||
-                i >= queue.getChildCount()
+                index < 0 ||
+                index >= queue.getChildCount()
         ) {
             return;
         }
 
-        Object t =
+        Object tag =
                 queue
-                        .getChildAt(i)
+                        .getChildAt(index)
                         .getTag();
 
         if (
-                t instanceof TextView
+                tag instanceof TextView
         ) {
 
-            ((TextView)t).setText(
+            ((TextView) tag).setText(
                     "#" +
-                    (i + 1) +
+                    (index + 1) +
                     "  " +
-                    s
+                    status
             );
         }
     }
@@ -1386,18 +1434,18 @@ public class MainActivity extends Activity {
     }
 
     private TextView text(
-            String s,
-            float z
+            String value,
+            float size
     ) {
 
-        TextView v =
+        TextView view =
                 new TextView(this);
 
-        v.setText(s);
+        view.setText(value);
 
-        v.setTextSize(z);
+        view.setTextSize(size);
 
-        v.setTextColor(
+        view.setTextColor(
                 Color.rgb(
                         17,
                         24,
@@ -1405,28 +1453,28 @@ public class MainActivity extends Activity {
                 )
         );
 
-        v.setPadding(
+        view.setPadding(
                 0,
                 9,
                 0,
                 9
         );
 
-        return v;
+        return view;
     }
 
     private Button button(
-            String s
+            String value
     ) {
 
-        Button b =
+        Button button =
                 new Button(this);
 
-        b.setText(s);
+        button.setText(value);
 
-        b.setAllCaps(false);
+        button.setAllCaps(false);
 
-        return b;
+        return button;
     }
 
     private void requestStorageIfNeeded() {
