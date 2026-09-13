@@ -11,13 +11,17 @@ import android.os.*;
 import android.view.*;
 import android.webkit.*;
 import android.widget.*;
+
 import java.util.*;
 
 public class MainActivity extends Activity {
 
-    private static final String SAVE_URL = "https://savetiktok.to/id";
+    private static final String SAVE_URL =
+            "https://savetiktok.to/id";
+
     private static final int REQ_STORAGE = 501;
-    private static final int MAX_RESULT_CHECKS = 30;
+
+    private static final int MAX_RESULT_CHECKS = 45;
 
     private EditText input;
     private LinearLayout queue;
@@ -25,12 +29,15 @@ public class MainActivity extends Activity {
     private TextView webStatus;
     private WebView webView;
 
-    private final ArrayList<String> urls = new ArrayList<>();
+    private final ArrayList<String> urls =
+            new ArrayList<>();
 
     private int currentIndex = -1;
+
     private boolean processing = false;
     private boolean submitClicked = false;
     private boolean downloadStarted = false;
+
     private int resultChecks = 0;
 
     private final Handler handler =
@@ -38,109 +45,205 @@ public class MainActivity extends Activity {
 
     @Override
     public void onCreate(Bundle b) {
+
         super.onCreate(b);
+
         buildUi();
+
         requestStorageIfNeeded();
     }
 
     private void buildUi() {
 
-        ScrollView sc = new ScrollView(this);
+        ScrollView sc =
+                new ScrollView(this);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(22, 22, 22, 22);
-        root.setBackgroundColor(Color.rgb(244, 245, 247));
+        LinearLayout root =
+                new LinearLayout(this);
 
-        root.addView(text("TikTok Download Manager", 28));
-        root.addView(text("WebView + antrean otomatis", 17));
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setPadding(
+                22,
+                22,
+                22,
+                22
+        );
+
+        root.setBackgroundColor(
+                Color.rgb(244, 245, 247)
+        );
+
+        root.addView(
+                text(
+                        "TikTok Download Manager",
+                        28
+                )
+        );
+
+        root.addView(
+                text(
+                        "WebView + antrean otomatis",
+                        17
+                )
+        );
 
         input = new EditText(this);
-        input.setHint("Tempel link TikTok, satu per baris");
+
+        input.setHint(
+                "Tempel link TikTok, satu per baris"
+        );
+
         input.setGravity(Gravity.TOP);
+
         input.setMinLines(5);
 
         root.addView(
                 input,
-                new LinearLayout.LayoutParams(-1, 250)
+                new LinearLayout.LayoutParams(
+                        -1,
+                        250
+                )
         );
 
-        LinearLayout row = new LinearLayout(this);
+        LinearLayout row =
+                new LinearLayout(this);
 
-        Button load = button("Muat Antrean");
-        Button clear = button("Bersihkan");
+        Button load =
+                button("Muat Antrean");
+
+        Button clear =
+                button("Bersihkan");
 
         row.addView(
                 load,
-                new LinearLayout.LayoutParams(0, 62, 1)
+                new LinearLayout.LayoutParams(
+                        0,
+                        62,
+                        1
+                )
         );
 
         LinearLayout.LayoutParams cp =
-                new LinearLayout.LayoutParams(0, 62, 1);
+                new LinearLayout.LayoutParams(
+                        0,
+                        62,
+                        1
+                );
 
-        cp.setMargins(10, 0, 0, 0);
+        cp.setMargins(
+                10,
+                0,
+                0,
+                0
+        );
 
         row.addView(clear, cp);
 
         root.addView(row);
 
-        progress = text("Progress: 0 / 0", 18);
+        progress =
+                text(
+                        "Progress: 0 / 0",
+                        18
+                );
+
         root.addView(progress);
 
-        webStatus = text("WebView: siap", 14);
+        webStatus =
+                text(
+                        "WebView: siap",
+                        14
+                );
+
         root.addView(webStatus);
 
-        Button startAll = button("Mulai Semua");
+        Button startAll =
+                button("Mulai Semua");
+
         root.addView(startAll);
 
         root.addView(
                 text(
-                        "Aplikasi memproses URL melalui halaman SaveTikTok di WebView. " +
-                        "CAPTCHA, login, rate limit, dan mekanisme keamanan tidak dilewati. " +
-                        "Jika situs meminta tindakan manual, selesaikan secara manual.",
+                        "Aplikasi memproses URL melalui halaman " +
+                        "SaveTikTok di WebView. CAPTCHA, login, " +
+                        "rate limit, dan mekanisme keamanan " +
+                        "tidak dilewati. Jika situs meminta " +
+                        "tindakan manual, selesaikan secara manual.",
                         14
                 )
         );
 
-        queue = new LinearLayout(this);
-        queue.setOrientation(LinearLayout.VERTICAL);
+        queue =
+                new LinearLayout(this);
+
+        queue.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
         root.addView(queue);
 
-        webView = new WebView(this);
-        webView.setVisibility(View.GONE);
+        webView =
+                new WebView(this);
+
+        webView.setVisibility(
+                View.GONE
+        );
 
         root.addView(
                 webView,
-                new LinearLayout.LayoutParams(-1, 650)
+                new LinearLayout.LayoutParams(
+                        -1,
+                        650
+                )
         );
 
         configureWebView();
 
-        load.setOnClickListener(v -> loadQueue());
-        clear.setOnClickListener(v -> clearQueue());
-        startAll.setOnClickListener(v -> startAll());
+        load.setOnClickListener(
+                v -> loadQueue()
+        );
+
+        clear.setOnClickListener(
+                v -> clearQueue()
+        );
+
+        startAll.setOnClickListener(
+                v -> startAll()
+        );
 
         sc.addView(root);
+
         setContentView(sc);
     }
 
     private void configureWebView() {
 
-        WebSettings s = webView.getSettings();
+        WebSettings s =
+                webView.getSettings();
 
         s.setJavaScriptEnabled(true);
+
         s.setDomStorageEnabled(true);
+
         s.setDatabaseEnabled(true);
 
         s.setAllowFileAccess(false);
+
         s.setAllowContentAccess(true);
 
         s.setSupportMultipleWindows(false);
-        s.setJavaScriptCanOpenWindowsAutomatically(false);
+
+        s.setJavaScriptCanOpenWindowsAutomatically(
+                false
+        );
 
         s.setUserAgentString(
                 "Mozilla/5.0 (Linux; Android 12) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) " +
                 "Chrome/140.0 Mobile Safari/537.36"
         );
 
@@ -149,68 +252,86 @@ public class MainActivity extends Activity {
                 "AndroidBridge"
         );
 
-        webView.setWebViewClient(new WebViewClient() {
+        webView.setWebViewClient(
+                new WebViewClient() {
 
-            @Override
-            public boolean shouldOverrideUrlLoading(
-                    WebView v,
-                    WebResourceRequest r
-            ) {
-                return false;
-            }
+                    @Override
+                    public boolean shouldOverrideUrlLoading(
+                            WebView v,
+                            WebResourceRequest r
+                    ) {
+                        return false;
+                    }
 
-            @Override
-            public void onPageFinished(
-                    WebView v,
-                    String url
-            ) {
+                    @Override
+                    public void onPageFinished(
+                            WebView v,
+                            String url
+                    ) {
 
-                webStatus.setText(
-                        "WebView: halaman siap"
-                );
+                        if (
+                                processing &&
+                                submitClicked
+                        ) {
 
-                if (
-                        processing &&
-                        currentIndex >= 0 &&
-                        isSaveTikTokPage(url) &&
-                        !submitClicked
-                ) {
+                            webStatus.setText(
+                                    "WebView: memantau hasil video..."
+                            );
 
-                    handler.postDelayed(
-                            () -> injectTikTokUrl(
-                                    urls.get(currentIndex)
-                            ),
-                            800
-                    );
+                        } else {
+
+                            webStatus.setText(
+                                    "WebView: halaman siap"
+                            );
+                        }
+
+                        if (
+                                processing &&
+                                currentIndex >= 0 &&
+                                isSaveTikTokPage(url) &&
+                                !submitClicked
+                        ) {
+
+                            handler.postDelayed(
+                                    () -> injectTikTokUrl(
+                                            urls.get(currentIndex)
+                                    ),
+                                    800
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onReceivedError(
+                            WebView v,
+                            WebResourceRequest r,
+                            WebResourceError e
+                    ) {
+
+                        if (
+                                r.isForMainFrame()
+                        ) {
+
+                            webStatus.setText(
+                                    "WebView: gagal memuat halaman"
+                            );
+                        }
+                    }
                 }
-            }
-
-            @Override
-            public void onReceivedError(
-                    WebView v,
-                    WebResourceRequest r,
-                    WebResourceError e
-            ) {
-
-                if (r.isForMainFrame()) {
-
-                    webStatus.setText(
-                            "WebView: gagal memuat halaman"
-                    );
-                }
-            }
-        });
+        );
 
         webView.setWebChromeClient(
                 new WebChromeClient()
         );
 
         webView.setDownloadListener(
-                (url,
-                 userAgent,
-                 contentDisposition,
-                 mimeType,
-                 contentLength) -> {
+                (
+                        url,
+                        userAgent,
+                        contentDisposition,
+                        mimeType,
+                        contentLength
+                ) -> {
 
                     enqueueDownload(
                             url,
@@ -222,17 +343,22 @@ public class MainActivity extends Activity {
         );
     }
 
-    private boolean isSaveTikTokPage(String url) {
+    private boolean isSaveTikTokPage(
+            String url
+    ) {
 
         try {
 
-            return Uri.parse(url)
-                    .getHost() != null
-                    &&
+            String host =
                     Uri.parse(url)
-                            .getHost()
-                            .toLowerCase(Locale.US)
-                            .contains("savetiktok.to");
+                            .getHost();
+
+            return host != null &&
+                    host.toLowerCase(
+                            Locale.US
+                    ).contains(
+                            "savetiktok.to"
+                    );
 
         } catch (Exception e) {
 
@@ -245,11 +371,13 @@ public class MainActivity extends Activity {
         LinkedHashSet<String> set =
                 new LinkedHashSet<>();
 
+        String raw =
+                input.getText()
+                        .toString();
+
         for (
                 String x :
-                input.getText()
-                        .toString()
-                        .split("\\r?\\n")
+                raw.split("\\r?\\n")
         ) {
 
             x = x.trim();
@@ -264,11 +392,15 @@ public class MainActivity extends Activity {
         }
 
         urls.clear();
+
         urls.addAll(set);
 
         currentIndex = -1;
+
         processing = false;
+
         submitClicked = false;
+
         downloadStarted = false;
 
         queue.removeAllViews();
@@ -309,25 +441,33 @@ public class MainActivity extends Activity {
 
         TextView st =
                 text(
-                        "#" + (i + 1) +
+                        "#" +
+                        (i + 1) +
                         "  Menunggu",
                         16
                 );
 
         TextView link =
-                text(url, 12);
+                text(
+                        url,
+                        12
+                );
 
         link.setMaxLines(3);
 
         Button p =
-                button("Proses Link Ini");
+                button(
+                        "Proses Link Ini"
+                );
 
         p.setOnClickListener(
                 v -> startSingle(i)
         );
 
         c.addView(st);
+
         c.addView(link);
+
         c.addView(p);
 
         c.setTag(st);
@@ -335,7 +475,9 @@ public class MainActivity extends Activity {
         queue.addView(c);
     }
 
-    private void startSingle(int i) {
+    private void startSingle(
+            int i
+    ) {
 
         if (
                 i < 0 ||
@@ -347,8 +489,11 @@ public class MainActivity extends Activity {
         currentIndex = i;
 
         processing = true;
+
         submitClicked = false;
+
         downloadStarted = false;
+
         resultChecks = 0;
 
         webStatus.setText(
@@ -402,10 +547,22 @@ public class MainActivity extends Activity {
 
         String u =
                 tiktokUrl
-                        .replace("\\", "\\\\")
-                        .replace("'", "\\'")
-                        .replace("\n", "\\n")
-                        .replace("\r", "\\r");
+                        .replace(
+                                "\\",
+                                "\\\\"
+                        )
+                        .replace(
+                                "'",
+                                "\\'"
+                        )
+                        .replace(
+                                "\n",
+                                "\\n"
+                        )
+                        .replace(
+                                "\r",
+                                "\\r"
+                        );
 
         String js =
                 "(function(){"
@@ -413,7 +570,9 @@ public class MainActivity extends Activity {
                 + "var u='" + u + "';"
 
                 + "var els=[].slice.call("
-                + "document.querySelectorAll('input,textarea')"
+                + "document.querySelectorAll("
+                + "'input,textarea'"
+                + ")"
                 + ");"
 
                 + "var el=els.find(function(e){"
@@ -444,21 +603,33 @@ public class MainActivity extends Activity {
 
                 + "}"
 
+                + "var proto="
+                + "Object.getPrototypeOf(el);"
+
                 + "var d="
                 + "Object.getOwnPropertyDescriptor("
-                + "HTMLInputElement.prototype,"
-                + "'value');"
+                + "proto,"
+                + "'value'"
+                + ");"
 
-                + "if(d&&d.set)"
+                + "if(d&&d.set){"
                 + "d.set.call(el,u);"
-                + "else el.value=u;"
+                + "}else{"
+                + "el.value=u;"
+                + "}"
 
                 + "el.dispatchEvent("
-                + "new Event('input',{bubbles:true})"
+                + "new Event("
+                + "'input',"
+                + "{bubbles:true}"
+                + ")"
                 + ");"
 
                 + "el.dispatchEvent("
-                + "new Event('change',{bubbles:true})"
+                + "new Event("
+                + "'change',"
+                + "{bubbles:true}"
+                + ")"
                 + ");"
 
                 + "el.focus();"
@@ -476,7 +647,8 @@ public class MainActivity extends Activity {
                 + "x.innerText||"
                 + "x.value||"
                 + "x.textContent||''"
-                + ").toLowerCase().trim();"
+                + ").toLowerCase()"
+                + ".trim();"
 
                 + "return /unduh|download|"
                 + "tải xuống|descarga/.test(t);"
@@ -488,7 +660,7 @@ public class MainActivity extends Activity {
                 + "b.click();"
 
                 + "AndroidBridge.status("
-                + "'URL dimasukkan dan tombol download ditekan'"
+                + "'URL dimasukkan dan tombol Unduh ditekan'"
                 + ");"
 
                 + "return 'OK';"
@@ -496,7 +668,7 @@ public class MainActivity extends Activity {
                 + "}"
 
                 + "AndroidBridge.status("
-                + "'URL dimasukkan; tombol download perlu ditekan manual'"
+                + "'URL dimasukkan; tombol Unduh tidak ditemukan'"
                 + ");"
 
                 + "return 'INPUT_ONLY';"
@@ -508,16 +680,56 @@ public class MainActivity extends Activity {
                 value -> {
 
                     submitClicked = true;
+
                     resultChecks = 0;
 
                     webStatus.setText(
                             "WebView: menunggu hasil video..."
                     );
 
+                    installResultObserver();
+
                     handler.postDelayed(
                             this::scanResultPage,
-                            1200
+                            1000
                     );
+                }
+        );
+    }
+
+    private void installResultObserver() {
+
+        String js =
+                "(function(){"
+
+                + "if(window.__tdmObserver)"
+                + "return 'EXISTS';"
+
+                + "window.__tdmObserver="
+                + "new MutationObserver(function(){"
+
+                + "if(window.AndroidBridge){"
+                + "AndroidBridge.status("
+                + "'Perubahan hasil terdeteksi'"
+                + ");"
+                + "}"
+
+                + "});"
+
+                + "window.__tdmObserver.observe("
+                + "document.body,"
+                + "{childList:true,"
+                + "subtree:true,"
+                + "attributes:true}"
+                + ");"
+
+                + "return 'INSTALLED';"
+
+                + "})()";
+
+        webView.evaluateJavascript(
+                js,
+                value -> {
                 }
         );
     }
@@ -530,9 +742,18 @@ public class MainActivity extends Activity {
         ) {
 
             runOnUiThread(
-                    () -> webStatus.setText(
-                            "WebView: " + s
-                    )
+                    () -> {
+
+                        if (
+                                processing &&
+                                !downloadStarted
+                        ) {
+
+                            webStatus.setText(
+                                    "WebView: " + s
+                            );
+                        }
+                    }
             );
         }
 
@@ -541,30 +762,33 @@ public class MainActivity extends Activity {
                 final String url
         ) {
 
-            runOnUiThread(() -> {
+            runOnUiThread(
+                    () -> {
 
-                if (
-                        !processing ||
-                        downloadStarted ||
-                        url == null ||
-                        url.length() < 8
-                ) {
-                    return;
-                }
+                        if (
+                                !processing ||
+                                downloadStarted ||
+                                url == null ||
+                                url.length() < 8
+                        ) {
 
-                downloadStarted = true;
+                            return;
+                        }
 
-                webStatus.setText(
-                        "WebView: tautan video ditemukan"
-                );
+                        downloadStarted = true;
 
-                enqueueDownload(
-                        url,
-                        null,
-                        "video/mp4",
-                        null
-                );
-            });
+                        webStatus.setText(
+                                "WebView: link video ditemukan"
+                        );
+
+                        enqueueDownload(
+                                url,
+                                null,
+                                "video/mp4",
+                                null
+                        );
+                    }
+            );
         }
     }
 
@@ -584,16 +808,23 @@ public class MainActivity extends Activity {
         ) {
 
             webStatus.setText(
-                    "WebView: hasil belum ditemukan, cek tindakan manual"
+                    "WebView: hasil belum ditemukan"
             );
 
             setStatus(
                     currentIndex,
-                    "Menunggu hasil / perlu tindakan manual"
+                    "Hasil belum ditemukan / perlu tindakan manual"
             );
 
             return;
         }
+
+        webStatus.setText(
+                "WebView: mencari tombol MP4/HD... " +
+                resultChecks +
+                "/" +
+                MAX_RESULT_CHECKS
+        );
 
         String js =
                 "(function(){"
@@ -604,7 +835,8 @@ public class MainActivity extends Activity {
                 + "e.innerText||"
                 + "e.textContent||"
                 + "e.value||"
-                + "e.getAttribute('aria-label')||''"
+                + "e.getAttribute('aria-label')||"
+                + "e.getAttribute('title')||''"
                 + ")+'')"
                 + ".toLowerCase()"
                 + ".replace(/\\s+/g,' ')"
@@ -612,43 +844,114 @@ public class MainActivity extends Activity {
 
                 + "}"
 
-                + "function goodUrl(h){"
+                + "function absolute(h){"
 
-                + "if(!h)return false;"
-
-                + "h=h.toLowerCase();"
-
-                + "return /^https?:/.test(h);"
+                + "try{"
+                + "return new URL(h,"
+                + "location.href).href;"
+                + "}catch(e){"
+                + "return '';"
+                + "}"
 
                 + "}"
 
-                + "var as=[].slice.call("
-                + "document.querySelectorAll('a[href]')"
+                + "function bad(h){"
+
+                + "return /facebook|instagram|"
+                + "twitter|telegram|whatsapp|"
+                + "pinterest/.test("
+                + "h.toLowerCase()"
                 + ");"
 
-                + "var direct=as.find(function(e){"
+                + "}"
 
-                + "var t=txt(e),"
-                + "h=e.href||'';"
+                + "function score(e){"
 
-                + "return goodUrl(h)"
-                + "&&("
-                + "e.hasAttribute('download')"
-                + "||/\\bmp4\\b/.test(t)"
-                + "||/\\bhd\\b/.test(t)"
-                + "||/\\b4k\\b/.test(t)"
-                + "||/\\.mp4(?:$|[?#])/.test(h)"
+                + "var t=txt(e);"
+
+                + "var p=e.parentElement"
+                + "?txt(e.parentElement):'';"
+
+                + "var g=t+' '+p;"
+
+                + "var s=0;"
+
+                + "if(/\\bmp4\\b/.test(g))s+=100;"
+
+                + "if(/\\bhd\\b/.test(g))s+=80;"
+
+                + "if(/\\b4k\\b/.test(g))s+=90;"
+
+                + "if(/video/.test(g))s+=40;"
+
+                + "if(/download|unduh/.test(g))s+=30;"
+
+                + "if(/mp3|audio|music/.test(g))s-=100;"
+
+                + "return s;"
+
+                + "}"
+
+                + "var candidates=[];"
+
+                + "var as=[].slice.call("
+                + "document.querySelectorAll("
+                + "'a[href]'"
                 + ")"
+                + ");"
 
-                + "&&!/instagram|facebook|"
-                + "twitter|telegram|whatsapp/.test(h);"
+                + "as.forEach(function(e){"
+
+                + "var raw=e.getAttribute('href')||'';"
+
+                + "var h=absolute(raw);"
+
+                + "var t=txt(e);"
+
+                + "if(!h||bad(h))return;"
+
+                + "if(/^https?:/i.test(h)){"
+
+                + "var s=score(e);"
+
+                + "if(e.hasAttribute('download'))"
+                + "s+=150;"
+
+                + "if(/\\.mp4(?:$|[?#])/i.test(h))"
+                + "s+=180;"
+
+                + "if(/blob:/i.test(h))"
+                + "s-=1000;"
+
+                + "if(s>0){"
+
+                + "candidates.push({"
+                + "e:e,"
+                + "h:h,"
+                + "s:s"
+                + "});"
+
+                + "}"
+
+                + "}"
 
                 + "});"
 
-                + "if(direct){"
+                + "candidates.sort(function(a,b){"
+                + "return b.s-a.s;"
+                + "});"
+
+                + "if(candidates.length){"
+
+                + "var best="
+                + "candidates[0];"
+
+                + "AndroidBridge.status("
+                + "'Link video hasil ditemukan'"
+                + ");"
 
                 + "AndroidBridge.downloadLink("
-                + "direct.href"
+                + "best.h"
                 + ");"
 
                 + "return 'LINK';"
@@ -658,66 +961,61 @@ public class MainActivity extends Activity {
                 + "var buttons=[].slice.call("
                 + "document.querySelectorAll("
                 + "'button,input[type=button],"
-                + "input[type=submit],[role=button]'"
+                + "input[type=submit],"
+                + "[role=button]'"
                 + ")"
                 + ");"
 
-                + "var result=buttons.find(function(e){"
+                + "var btns=[];"
+
+                + "buttons.forEach(function(e){"
 
                 + "var t=txt(e);"
-
-                + "if(!t)return false;"
 
                 + "var p=e.parentElement"
                 + "?txt(e.parentElement):'';"
 
                 + "var g=t+' '+p;"
 
-                + "return ("
-                + "/\\bmp4\\b/.test(t)"
-                + "||/\\bhd\\b/.test(t)"
-                + "||/\\b4k\\b/.test(t)"
-                + ")"
+                + "if(/mp3|audio|music/.test(g))"
+                + "return;"
 
-                + "&&/download|unduh|mp4|hd|4k/"
-                + ".test(g.substring(0,220));"
+                + "var s=score(e);"
+
+                + "if(s>=70){"
+
+                + "btns.push({e:e,s:s});"
+
+                + "}"
 
                 + "});"
 
-                + "if(result){"
+                + "btns.sort(function(a,b){"
+                + "return b.s-a.s;"
+                + "});"
 
-                + "result.click();"
+                + "if(btns.length){"
+
+                + "btns[0].e.click();"
 
                 + "AndroidBridge.status("
-                + "'Tombol hasil MP4/HD ditemukan dan ditekan'"
+                + "'Tombol hasil MP4/HD ditekan'"
                 + ");"
 
                 + "return 'CLICK';"
 
                 + "}"
 
-                + "var plain=buttons.find(function(e){"
+                + "var body=txt(document.body);"
 
-                + "var t=txt(e);"
-
-                + "return /download|unduh/.test(t)"
-                + "&&/mp4|video|hd|4k/"
-                + ".test(("
-                + "e.parentElement"
-                + "?txt(e.parentElement):''"
-                + ").substring(0,220));"
-
-                + "});"
-
-                + "if(plain){"
-
-                + "plain.click();"
+                + "if(/captcha|verify you are human|"
+                + "verifikasi bahwa anda manusia/.test(body)){"
 
                 + "AndroidBridge.status("
-                + "'Tombol download hasil video ditekan'"
+                + "'CAPTCHA/verifikasi perlu tindakan manual'"
                 + ");"
 
-                + "return 'CLICK';"
+                + "return 'CAPTCHA';"
 
                 + "}"
 
@@ -729,26 +1027,15 @@ public class MainActivity extends Activity {
                 js,
                 value -> {
 
-                    if (downloadStarted) {
-                        return;
-                    }
-
                     if (
-                            value != null &&
-                            value.contains("CLICK")
+                            downloadStarted
                     ) {
-
-                        handler.postDelayed(
-                                this::scanResultPage,
-                                1500
-                        );
-
                         return;
                     }
 
                     handler.postDelayed(
                             this::scanResultPage,
-                            1500
+                            1200
                     );
                 }
         );
@@ -770,6 +1057,31 @@ public class MainActivity extends Activity {
 
         try {
 
+            Uri uri =
+                    Uri.parse(url);
+
+            String scheme =
+                    uri.getScheme();
+
+            if (
+                    scheme == null ||
+                    !scheme.equalsIgnoreCase(
+                            "http"
+                    ) &&
+                    !scheme.equalsIgnoreCase(
+                            "https"
+                    )
+            ) {
+
+                downloadStarted = false;
+
+                webStatus.setText(
+                        "WebView: format link download tidak didukung"
+                );
+
+                return;
+            }
+
             DownloadManager dm =
                     (DownloadManager)
                             getSystemService(
@@ -778,7 +1090,7 @@ public class MainActivity extends Activity {
 
             DownloadManager.Request r =
                     new DownloadManager.Request(
-                            Uri.parse(url)
+                            uri
                     );
 
             r.setTitle(
@@ -791,7 +1103,8 @@ public class MainActivity extends Activity {
             );
 
             r.setNotificationVisibility(
-                    DownloadManager.Request
+                    DownloadManager
+                            .Request
                             .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             );
 
@@ -845,7 +1158,9 @@ public class MainActivity extends Activity {
             if (
                     filename == null ||
                     filename.trim().isEmpty() ||
-                    filename.equals("downloadfile")
+                    filename.equals(
+                            "downloadfile"
+                    )
             ) {
 
                 filename =
@@ -856,7 +1171,9 @@ public class MainActivity extends Activity {
 
             if (
                     !filename
-                            .toLowerCase(Locale.US)
+                            .toLowerCase(
+                                    Locale.US
+                            )
                             .endsWith(".mp4")
                     &&
                     (
@@ -877,7 +1194,8 @@ public class MainActivity extends Activity {
 
             dm.enqueue(r);
 
-            int done = currentIndex;
+            int done =
+                    currentIndex;
 
             setStatus(
                     done,
@@ -891,34 +1209,40 @@ public class MainActivity extends Activity {
                     urls.size()
             );
 
-            handler.postDelayed(() -> {
+            handler.postDelayed(
+                    () -> {
 
-                processing = false;
-                submitClicked = false;
-                downloadStarted = false;
+                        processing = false;
 
-                int next = done + 1;
+                        submitClicked = false;
 
-                if (
-                        next < urls.size()
-                ) {
+                        downloadStarted = false;
 
-                    startSingle(next);
+                        int next =
+                                done + 1;
 
-                } else {
+                        if (
+                                next < urls.size()
+                        ) {
 
-                    webStatus.setText(
-                            "WebView: semua antrean selesai"
-                    );
+                            startSingle(next);
 
-                    Toast.makeText(
-                            this,
-                            "Semua antrean sudah diproses.",
-                            Toast.LENGTH_LONG
-                    ).show();
-                }
+                        } else {
 
-            }, 1800);
+                            webStatus.setText(
+                                    "WebView: semua antrean selesai"
+                            );
+
+                            Toast.makeText(
+                                    this,
+                                    "Semua antrean sudah diproses.",
+                                    Toast.LENGTH_LONG
+                            ).show();
+                        }
+
+                    },
+                    1800
+            );
 
         } catch (Exception e) {
 
@@ -945,7 +1269,9 @@ public class MainActivity extends Activity {
         currentIndex = -1;
 
         processing = false;
+
         submitClicked = false;
+
         downloadStarted = false;
 
         queue.removeAllViews();
@@ -976,9 +1302,11 @@ public class MainActivity extends Activity {
                         .getChildAt(i)
                         .getTag();
 
-        if (t instanceof TextView) {
+        if (
+                t instanceof TextView
+        ) {
 
-            ((TextView) t).setText(
+            ((TextView)t).setText(
                     "#" +
                     (i + 1) +
                     "  " +
@@ -1004,6 +1332,7 @@ public class MainActivity extends Activity {
                 new TextView(this);
 
         v.setText(s);
+
         v.setTextSize(z);
 
         v.setTextColor(
@@ -1032,6 +1361,7 @@ public class MainActivity extends Activity {
                 new Button(this);
 
         b.setText(s);
+
         b.setAllCaps(false);
 
         return b;
