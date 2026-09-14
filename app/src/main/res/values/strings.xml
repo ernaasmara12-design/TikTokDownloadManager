@@ -1,3 +1,10 @@
-<string name="accessibility_service_description">
-    Mendeteksi aktivitas salin tautan TikTok untuk membantu memasukkan tautan ke antrean download.
-</string>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">TikTok Download Manager</string>
+
+    <string name="accessibility_service_description">
+        Mendeteksi aktivitas salin tautan TikTok untuk membantu memasukkan tautan ke antrean download.
+    </string>
+
+</resources>
