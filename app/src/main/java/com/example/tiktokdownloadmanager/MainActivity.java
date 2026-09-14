@@ -195,7 +195,7 @@ public class MainActivity extends Activity {
 
         webStatus =
                 text(
-                        "WebView: siap",
+                        "Status: siap",
                         14
                 );
 
@@ -208,10 +208,9 @@ public class MainActivity extends Activity {
 
         root.addView(
                 text(
-                        "Hasil download disimpan di " +
+                        "Hasil download disimpan otomatis di " +
                         "Download/TikTokDownloadManager. " +
-                        "Setiap video mempunyai folder sendiri " +
-                        "dan caption disimpan sebagai caption.txt.",
+                        "Setiap video mempunyai folder sendiri.",
                         14
                 )
         );
@@ -225,6 +224,10 @@ public class MainActivity extends Activity {
 
         root.addView(queue);
 
+        /*
+         * WebView tetap ada sebagai mesin otomatis,
+         * tetapi TIDAK ditampilkan di dashboard.
+         */
         webView =
                 new WebView(this);
 
@@ -232,15 +235,13 @@ public class MainActivity extends Activity {
                 View.GONE
         );
 
-        root.addView(
-                webView,
-                new LinearLayout.LayoutParams(
-                        -1,
-                        650
-                )
-        );
-
         configureWebView();
+
+        /*
+         * Jangan masukkan WebView ke dashboard.
+         * WebView tetap bisa melakukan proses
+         * background dan menerima DownloadListener.
+         */
 
         load.setOnClickListener(
                 v -> loadQueue()
@@ -333,7 +334,7 @@ public class MainActivity extends Activity {
                         if (!submitClicked) {
 
                             webStatus.setText(
-                                    "WebView: mencari kolom URL..."
+                                    "Status: menyiapkan URL..."
                             );
 
                             handler.postDelayed(
@@ -347,7 +348,7 @@ public class MainActivity extends Activity {
                         } else {
 
                             webStatus.setText(
-                                    "WebView: menunggu hasil..."
+                                    "Status: menunggu hasil..."
                             );
                         }
                     }
@@ -362,7 +363,7 @@ public class MainActivity extends Activity {
                         if (request.isForMainFrame()) {
 
                             webStatus.setText(
-                                    "WebView: gagal memuat halaman"
+                                    "Status: gagal memuat SaveTikTok"
                             );
                         }
                     }
@@ -466,8 +467,8 @@ public class MainActivity extends Activity {
 
         webStatus.setText(
                 urls.isEmpty()
-                        ? "WebView: tidak ada URL"
-                        : "WebView: antrean siap"
+                        ? "Status: tidak ada URL"
+                        : "Status: antrean siap"
         );
     }
 
@@ -579,13 +580,13 @@ public class MainActivity extends Activity {
         );
 
         webStatus.setText(
-                "WebView: membuka SaveTikTok..."
+                "Status: membuka SaveTikTok..."
         );
 
-        webView.setVisibility(
-                View.VISIBLE
-        );
-
+        /*
+         * WebView TIDAK ditampilkan.
+         * Hanya digunakan sebagai mesin otomatis.
+         */
         webView.loadUrl(
                 SAVE_URL
         );
@@ -605,7 +606,7 @@ public class MainActivity extends Activity {
         if (attempt >= MAX_INPUT_CHECKS) {
 
             webStatus.setText(
-                    "WebView: kolom URL tidak ditemukan"
+                    "Status: kolom URL tidak ditemukan"
             );
 
             setStatus(
@@ -618,6 +619,7 @@ public class MainActivity extends Activity {
 
         String js =
                 "(function(){" +
+
                 "var f=Array.from(" +
                 "document.querySelectorAll(" +
                 "'input,textarea'));" +
@@ -640,6 +642,7 @@ public class MainActivity extends Activity {
                 "});" +
 
                 "return x?'FOUND':'WAIT';" +
+
                 "})()";
 
         webView.evaluateJavascript(
@@ -722,6 +725,7 @@ public class MainActivity extends Activity {
                 "if(d&&d.set)d.set.call(x," +
                 safe +
                 ");" +
+
                 "else x.value=" +
                 safe +
                 ";" +
@@ -773,7 +777,7 @@ public class MainActivity extends Activity {
                         submitClicked = true;
 
                         webStatus.setText(
-                                "WebView: URL dikirim..."
+                                "Status: URL dikirim..."
                         );
 
                         setStatus(
@@ -815,7 +819,7 @@ public class MainActivity extends Activity {
         if (attempt >= MAX_RESULT_CHECKS) {
 
             webStatus.setText(
-                    "WebView: MP4 HD tidak ditemukan"
+                    "Status: MP4 HD tidak ditemukan"
             );
 
             setStatus(
@@ -852,39 +856,58 @@ public class MainActivity extends Activity {
 
                 "var caption='';" +
 
-                "var nodes=Array.from(" +
-                "document.querySelectorAll(" +
+                /*
+                 * Ambil kandidat teks yang lebih dekat
+                 * dengan hasil video.
+                 */
+                "if(target){" +
+
+                "var parent=target.parentElement;" +
+
+                "for(var level=0;" +
+                "level<5&&parent;" +
+                "level++," +
+                "parent=parent.parentElement){" +
+
+                "var candidates=Array.from(" +
+                "parent.querySelectorAll(" +
                 "'h1,h2,h3,h4,p,span,div'" +
                 "));" +
 
-                "var bad=/^(unduh|download|" +
-                "unduh mp4|download mp4|" +
-                "unduh mp4 hd|download mp4 hd|" +
-                "unduh mp3|download mp3|" +
-                "share|bagikan|copy|salin|" +
-                "unduh lebih banyak video)$/i;" +
-
                 "for(var i=0;" +
-                "i<nodes.length;i++){" +
+                "i<candidates.length;i++){" +
 
                 "var s=(" +
-                "nodes[i].innerText||" +
-                "nodes[i].textContent||''" +
+                "candidates[i].innerText||" +
+                "candidates[i].textContent||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim();" +
 
                 "if(s.length>=3&&" +
                 "s.length<=500&&" +
-                "!bad.test(s)&&" +
+
+                "!/^(" +
+                "download|unduh|" +
+                "download mp4|unduh mp4|" +
+                "download mp4 hd|unduh mp4 hd|" +
+                "download mp3|unduh mp3|" +
+                "share|bagikan|copy|salin" +
+                ")$/i.test(s)&&" +
+
                 "!/savetiktok|tiktok download manager/i" +
                 ".test(s)&&" +
-                "(s.indexOf('#')>=0||" +
-                "s.length>20)){" +
+
+                "(/#/.test(s)||s.length>20)){" +
 
                 "caption=s;" +
+                "break;" +
+
+                "}" +
                 "}" +
 
                 "if(caption)break;" +
+                "}" +
+
                 "}" +
 
                 "return JSON.stringify({" +
@@ -1013,7 +1036,7 @@ public class MainActivity extends Activity {
                             result.contains("CLICKED")) {
 
                         webStatus.setText(
-                                "WebView: MP4 HD dipilih..."
+                                "Status: MP4 HD dipilih..."
                         );
 
                         setStatus(
@@ -1080,17 +1103,12 @@ public class MainActivity extends Activity {
                 );
 
         /*
-         * PENTING:
+         * SaveTikTok dapat mengirim MP4 HD
+         * sebagai application/octet-stream
+         * atau URL yang mengandung .bin.
          *
-         * SaveTikTok kadang mengirim video
-         * dengan MIME application/octet-stream
-         * atau URL yang terlihat seperti .bin.
-         *
-         * Karena tombol yang kita klik adalah
-         * MP4 HD, response tersebut kita perlakukan
-         * sebagai file video.
+         * Jangan menolak .bin.
          */
-
         boolean html =
                 mime.contains("text/html") ||
                 mime.contains("application/xhtml");
@@ -1113,18 +1131,10 @@ public class MainActivity extends Activity {
                 mime.contains("mp4") ||
                 disposition.contains(".mp4") ||
                 lowerUrl.contains(".mp4") ||
-
-                /*
-                 * application/octet-stream /
-                 * .bin diterima karena berasal
-                 * dari tombol MP4 HD SaveTikTok.
-                 */
                 mime.contains(
                         "application/octet-stream"
                 ) ||
-
                 disposition.contains(".bin") ||
-
                 lowerUrl.contains(".bin");
 
         if (!video) {
@@ -1148,8 +1158,8 @@ public class MainActivity extends Activity {
         }
 
         /*
-         * Pengaman utama agar satu video
-         * tidak dibuat dua download.
+         * Satu URL download hanya boleh
+         * diproses satu kali.
          */
         if (downloadStarted) {
             return;
@@ -1158,7 +1168,7 @@ public class MainActivity extends Activity {
         downloadStarted = true;
 
         webStatus.setText(
-                "WebView: video ditemukan, download..."
+                "Status: video ditemukan, download..."
         );
 
         enqueueDownload(
@@ -1239,7 +1249,7 @@ public class MainActivity extends Activity {
             );
 
             /*
-             * Folder:
+             * Struktur:
              *
              * Download/
              *   TikTokDownloadManager/
@@ -1257,21 +1267,13 @@ public class MainActivity extends Activity {
                     "TikTokDownloadManager/" +
                     number;
 
-            String filename =
-                    "video.mp4";
-
             /*
-             * Jangan gunakan nama file dari server.
-             *
-             * Walaupun server mengirim:
-             * SaveTikTok.bin
-             *
-             * hasil akhirnya:
-             * video.mp4
+             * Selalu pakai video.mp4.
+             * Nama .bin dari server tidak digunakan.
              */
             request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
-                    folder + "/" + filename
+                    folder + "/video.mp4"
             );
 
             currentDownloadId =
@@ -1288,17 +1290,7 @@ public class MainActivity extends Activity {
             );
 
             webStatus.setText(
-                    "WebView: download dimulai → " +
-                    "Download/" +
-                    folder +
-                    "/video.mp4"
-            );
-
-            progress.setText(
-                    "Progress: " +
-                    (index + 1) +
-                    " / " +
-                    urls.size()
+                    "Status: download dimulai"
             );
 
             waitForDownloadCompletion(
@@ -1319,7 +1311,7 @@ public class MainActivity extends Activity {
             );
 
             webStatus.setText(
-                    "WebView: gagal download - " +
+                    "Status: gagal download - " +
                     e.getMessage()
             );
         }
@@ -1336,17 +1328,13 @@ public class MainActivity extends Activity {
 
             setStatus(
                     index,
-                    "Download berjalan"
+                    "Download masih berjalan"
             );
 
-            /*
-             * Jangan langsung membuat video dianggap
-             * selesai hanya karena timeout.
-             */
             processing = false;
 
             webStatus.setText(
-                    "WebView: download masih berjalan"
+                    "Status: download masih berjalan"
             );
 
             return;
@@ -1382,13 +1370,9 @@ public class MainActivity extends Activity {
                     );
 
                     webStatus.setText(
-                            "WebView: download selesai"
+                            "Status: download selesai"
                     );
 
-                    /*
-                     * Caption baru disimpan setelah
-                     * download video berhasil.
-                     */
                     saveCaptionFile(
                             index
                     );
@@ -1422,7 +1406,7 @@ public class MainActivity extends Activity {
                     );
 
                     webStatus.setText(
-                            "WebView: download gagal"
+                            "Status: download gagal"
                     );
 
                     processing = false;
@@ -1468,7 +1452,7 @@ public class MainActivity extends Activity {
                     );
 
                     webStatus.setText(
-                            "WebView: download " +
+                            "Status: download " +
                             percent +
                             "%"
                     );
@@ -1607,9 +1591,6 @@ public class MainActivity extends Activity {
 
             } else {
 
-                /*
-                 * Android 9 ke bawah.
-                 */
                 File base =
                         Environment
                                 .getExternalStoragePublicDirectory(
@@ -1652,7 +1633,7 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
 
             webStatus.setText(
-                    "WebView: video selesai, " +
+                    "Status: video selesai, " +
                     "caption gagal disimpan"
             );
         }
@@ -1689,7 +1670,7 @@ public class MainActivity extends Activity {
             );
 
             webStatus.setText(
-                    "WebView: semua antrean selesai"
+                    "Status: semua antrean selesai"
             );
 
             Toast.makeText(
@@ -1729,14 +1710,10 @@ public class MainActivity extends Activity {
         );
 
         webStatus.setText(
-                "WebView: siap"
+                "Status: siap"
         );
 
         webView.stopLoading();
-
-        webView.setVisibility(
-                View.GONE
-        );
     }
 
     private void setStatus(
@@ -1857,16 +1834,10 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
 
-        if (webView != null &&
-                webView.getVisibility() ==
-                        View.VISIBLE &&
-                webView.canGoBack()) {
-
-            webView.goBack();
-
-        } else {
-
-            super.onBackPressed();
-        }
+        /*
+         * Karena WebView sekarang disembunyikan,
+         * tombol Back langsung mengikuti Activity.
+         */
+        super.onBackPressed();
     }
 }
