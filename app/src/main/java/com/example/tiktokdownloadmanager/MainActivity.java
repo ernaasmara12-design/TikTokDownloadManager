@@ -9,9 +9,11 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaMetadataRetriever;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,12 +28,13 @@ import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.MediaController;
 import android.widget.ScrollView;
@@ -137,8 +140,6 @@ public class MainActivity extends Activity {
 
         requestStorageIfNeeded();
 
-        // Menerima link dari Share Sheet ketika
-        // aplikasi baru dibuka.
         handleShareIntent(getIntent());
     }
 
@@ -148,10 +149,12 @@ public class MainActivity extends Activity {
 
         setIntent(intent);
 
-        // Menerima link Share ketika Activity
-        // sudah sedang terbuka.
         handleShareIntent(intent);
     }
+
+    // =========================================================
+    // SHARE
+    // =========================================================
 
     private void handleShareIntent(Intent intent) {
 
@@ -238,15 +241,14 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_SHORT
         ).show();
 
-        /*
-         * Jika tidak ada proses yang sedang berjalan,
-         * langsung mulai link yang baru dibagikan.
-         */
         if (!processing) {
-
             startSingle(newIndex);
         }
     }
+
+    // =========================================================
+    // WINDOW
+    // =========================================================
 
     private void prepareWindow() {
 
@@ -270,18 +272,15 @@ public class MainActivity extends Activity {
         }
     }
 
+    // =========================================================
+    // RESUME / PAUSE
+    // =========================================================
+
     @Override
     protected void onResume() {
 
         super.onResume();
 
-        /*
-         * Clipboard otomatis hanya ketika aplikasi
-         * sedang berada di foreground.
-         *
-         * Android modern membatasi aplikasi background
-         * membaca clipboard aplikasi lain.
-         */
         lastClipboardText =
                 readClipboardText();
 
@@ -461,12 +460,12 @@ public class MainActivity extends Activity {
 
         while (
                 url.endsWith(".") ||
-                url.endsWith(",") ||
-                url.endsWith("!") ||
-                url.endsWith("?") ||
-                url.endsWith(")") ||
-                url.endsWith("]") ||
-                url.endsWith("}")
+                        url.endsWith(",") ||
+                        url.endsWith("!") ||
+                        url.endsWith("?") ||
+                        url.endsWith(")") ||
+                        url.endsWith("]") ||
+                        url.endsWith("}")
         ) {
 
             url = url.substring(
@@ -536,10 +535,6 @@ public class MainActivity extends Activity {
 
         showPage(1);
 
-        /*
-         * Kalau tidak sedang download,
-         * langsung proses link clipboard.
-         */
         if (!processing) {
             startSingle(index);
         }
@@ -606,6 +601,7 @@ public class MainActivity extends Activity {
                         return insets;
                     }
             );
+
         } else {
 
             root.setPadding(
@@ -754,6 +750,10 @@ public class MainActivity extends Activity {
 
         showPage(0);
     }
+
+    // =========================================================
+    // DOWNLOAD PAGE
+    // =========================================================
 
     private LinearLayout buildDownloadPage() {
 
@@ -930,7 +930,10 @@ public class MainActivity extends Activity {
         );
 
         TextView infoTitle =
-                text("Cara kerja", 17);
+                text(
+                        "Cara kerja",
+                        17
+                );
 
         infoTitle.setTypeface(
                 Typeface.DEFAULT,
@@ -950,7 +953,9 @@ public class MainActivity extends Activity {
                 Color.rgb(107, 114, 128)
         );
 
-        info.addView(infoTitle);
+        info.addView(
+                infoTitle
+        );
 
         info.addView(
                 infoText,
@@ -1020,7 +1025,10 @@ public class MainActivity extends Activity {
         );
 
         TextView supported =
-                text("Supported", 18);
+                text(
+                        "Supported",
+                        18
+                );
 
         supported.setTypeface(
                 Typeface.DEFAULT,
@@ -1204,6 +1212,10 @@ public class MainActivity extends Activity {
         return outer;
     }
 
+    // =========================================================
+    // PROGRESS PAGE
+    // =========================================================
+
     private LinearLayout buildProgressPage() {
 
         LinearLayout page =
@@ -1221,7 +1233,10 @@ public class MainActivity extends Activity {
         );
 
         TextView title =
-                text("Progress", 25);
+                text(
+                        "Progress",
+                        25
+                );
 
         title.setTypeface(
                 Typeface.DEFAULT,
@@ -1264,7 +1279,10 @@ public class MainActivity extends Activity {
         );
 
         progressText =
-                text("0 / 0", 14);
+                text(
+                        "0 / 0",
+                        14
+                );
 
         progressText.setTypeface(
                 Typeface.DEFAULT,
@@ -1281,7 +1299,9 @@ public class MainActivity extends Activity {
         );
 
         Button start =
-                primaryButton("Mulai Semua");
+                primaryButton(
+                        "Mulai Semua"
+                );
 
         summary.addView(
                 start,
@@ -1348,6 +1368,10 @@ public class MainActivity extends Activity {
         return page;
     }
 
+    // =========================================================
+    // FINISHED PAGE
+    // =========================================================
+
     private LinearLayout buildFinishedPage() {
 
         LinearLayout page =
@@ -1365,7 +1389,10 @@ public class MainActivity extends Activity {
         );
 
         TextView title =
-                text("Finished", 25);
+                text(
+                        "Finished",
+                        25
+                );
 
         title.setTypeface(
                 Typeface.DEFAULT,
@@ -1498,8 +1525,17 @@ public class MainActivity extends Activity {
 
         card.addView(
                 header,
-                marginParams(0, 0, 0, 8)
+                marginParams(
+                        0,
+                        0,
+                        0,
+                        8
+                )
         );
+
+        // =====================================================
+        // VIDEO PREVIEW
+        // =====================================================
 
         try {
 
@@ -1512,57 +1548,222 @@ public class MainActivity extends Activity {
             if (manager != null &&
                     currentDownloadId != -1L) {
 
-                Uri videoUri =
-                        manager
-                                .getUriForDownloadedFile(
-                                        currentDownloadId
-                                );
+                final Uri videoUri =
+                        manager.getUriForDownloadedFile(
+                                currentDownloadId
+                        );
 
                 if (videoUri != null) {
 
-                    VideoView video =
-                            new VideoView(this);
+                    FrameLayout preview =
+                            new FrameLayout(this);
 
-                    video.setBackgroundColor(
+                    preview.setBackgroundColor(
                             Color.BLACK
                     );
 
-                    MediaController controller =
-                            new MediaController(this);
+                    // =================================================
+                    // THUMBNAIL
+                    // =================================================
 
-                    controller.setAnchorView(
-                            video
+                    ImageView thumbnail =
+                            new ImageView(this);
+
+                    thumbnail.setScaleType(
+                            ImageView.ScaleType.CENTER_CROP
                     );
 
-                    video.setMediaController(
-                            controller
+                    thumbnail.setBackgroundColor(
+                            Color.BLACK
                     );
 
-                    video.setVideoURI(
-                            videoUri
+                    Bitmap bitmap = null;
+
+                    MediaMetadataRetriever retriever =
+                            new MediaMetadataRetriever();
+
+                    try {
+
+                        retriever.setDataSource(
+                                this,
+                                videoUri
+                        );
+
+                        // Ambil frame sekitar detik pertama
+                        bitmap =
+                                retriever.getFrameAtTime(
+                                        1000000L,
+                                        MediaMetadataRetriever
+                                                .OPTION_CLOSEST_SYNC
+                                );
+
+                        // Jika frame pertama gagal,
+                        // coba frame paling awal.
+                        if (bitmap == null) {
+
+                            bitmap =
+                                    retriever.getFrameAtTime(
+                                            0L,
+                                            MediaMetadataRetriever
+                                                    .OPTION_CLOSEST_SYNC
+                                    );
+                        }
+
+                    } catch (Exception ignored) {
+
+                    } finally {
+
+                        try {
+                            retriever.release();
+                        } catch (Exception ignored) {
+                        }
+                    }
+
+                    if (bitmap != null) {
+
+                        thumbnail.setImageBitmap(
+                                bitmap
+                        );
+                    }
+
+                    preview.addView(
+                            thumbnail,
+                            new FrameLayout.LayoutParams(
+                                    -1,
+                                    -1
+                            )
+                    );
+
+                    // =================================================
+                    // PLAY BUTTON
+                    // =================================================
+
+                    TextView play =
+                            new TextView(this);
+
+                    play.setText(
+                            "▶"
+                    );
+
+                    play.setTextSize(
+                            28
+                    );
+
+                    play.setTextColor(
+                            Color.WHITE
+                    );
+
+                    play.setGravity(
+                            Gravity.CENTER
+                    );
+
+                    play.setTypeface(
+                            Typeface.DEFAULT,
+                            Typeface.BOLD
+                    );
+
+                    play.setBackground(
+                            round(
+                                    Color.rgb(
+                                            37,
+                                            99,
+                                            235
+                                    ),
+                                    50
+                            )
+                    );
+
+                    FrameLayout.LayoutParams playParams =
+                            new FrameLayout.LayoutParams(
+                                    dp(64),
+                                    dp(64),
+                                    Gravity.CENTER
+                            );
+
+                    preview.addView(
+                            play,
+                            playParams
+                    );
+
+                    // =================================================
+                    // PLAY VIDEO
+                    // =================================================
+
+                    View.OnClickListener playListener =
+                            v -> {
+
+                                preview.removeAllViews();
+
+                                VideoView video =
+                                        new VideoView(
+                                                MainActivity.this
+                                        );
+
+                                video.setBackgroundColor(
+                                        Color.BLACK
+                                );
+
+                                MediaController controller =
+                                        new MediaController(
+                                                MainActivity.this
+                                        );
+
+                                controller.setAnchorView(
+                                        video
+                                );
+
+                                video.setMediaController(
+                                        controller
+                                );
+
+                                video.setVideoURI(
+                                        videoUri
+                                );
+
+                                preview.addView(
+                                        video,
+                                        new FrameLayout.LayoutParams(
+                                                -1,
+                                                -1
+                                        )
+                                );
+
+                                video.setOnPreparedListener(
+                                        mp -> {
+
+                                            mp.setLooping(
+                                                    false
+                                            );
+
+                                            video.start();
+                                        }
+                                );
+                            };
+
+                    thumbnail.setOnClickListener(
+                            playListener
+                    );
+
+                    play.setOnClickListener(
+                            playListener
                     );
 
                     card.addView(
-                            video,
+                            preview,
                             new LinearLayout.LayoutParams(
                                     -1,
                                     dp(205)
                             )
-                    );
-
-                    video.setOnPreparedListener(
-                            mp -> {
-
-                                mp.setLooping(false);
-
-                                video.seekTo(1);
-                            }
                     );
                 }
             }
 
         } catch (Exception ignored) {
         }
+
+        // =====================================================
+        // CAPTION
+        // =====================================================
 
         TextView cap =
                 text(
@@ -1574,15 +1775,30 @@ public class MainActivity extends Activity {
                 );
 
         cap.setTextColor(
-                Color.rgb(55, 65, 81)
+                Color.rgb(
+                        55,
+                        65,
+                        81
+                )
         );
 
-        cap.setMaxLines(4);
+        cap.setMaxLines(
+                4
+        );
 
         card.addView(
                 cap,
-                marginParams(0, 10, 0, 5)
+                marginParams(
+                        0,
+                        10,
+                        0,
+                        5
+                )
         );
+
+        // =====================================================
+        // FILE INFO
+        // =====================================================
 
         TextView files =
                 text(
@@ -1591,10 +1807,16 @@ public class MainActivity extends Activity {
                 );
 
         files.setTextColor(
-                Color.rgb(107, 114, 128)
+                Color.rgb(
+                        107,
+                        114,
+                        128
+                )
         );
 
-        card.addView(files);
+        card.addView(
+                files
+        );
     }
 
     // =========================================================
@@ -1916,10 +2138,16 @@ public class MainActivity extends Activity {
                 );
 
         link.setTextColor(
-                Color.rgb(107, 114, 128)
+                Color.rgb(
+                        107,
+                        114,
+                        128
+                )
         );
 
-        link.setMaxLines(3);
+        link.setMaxLines(
+                3
+        );
 
         Button process =
                 secondaryButton(
@@ -1930,11 +2158,18 @@ public class MainActivity extends Activity {
                 v -> startSingle(index)
         );
 
-        card.addView(status);
+        card.addView(
+                status
+        );
 
         card.addView(
                 link,
-                marginParams(0, 3, 0, 8)
+                marginParams(
+                        0,
+                        3,
+                        0,
+                        8
+                )
         );
 
         card.addView(
@@ -1945,7 +2180,9 @@ public class MainActivity extends Activity {
                 )
         );
 
-        card.setTag(status);
+        card.setTag(
+                status
+        );
     }
 
     // =========================================================
@@ -2085,7 +2322,9 @@ public class MainActivity extends Activity {
                 result -> {
 
                     if (result != null &&
-                            result.contains("FOUND")) {
+                            result.contains(
+                                    "FOUND"
+                            )) {
 
                         webStatus.setText(
                                 "WebView: kolom URL ditemukan..."
@@ -2129,7 +2368,9 @@ public class MainActivity extends Activity {
         }
 
         String safeUrl =
-                JSONObject.quote(tiktokUrl);
+                JSONObject.quote(
+                        tiktokUrl
+                );
 
         String js =
                 "(function(){"
@@ -2324,7 +2565,9 @@ public class MainActivity extends Activity {
                                         : String.valueOf(parsed);
 
                         JSONObject obj =
-                                new JSONObject(jsonText);
+                                new JSONObject(
+                                        jsonText
+                                );
 
                         currentCaption =
                                 obj.optString(
@@ -2511,10 +2754,6 @@ public class MainActivity extends Activity {
                         ||
                         lowerUrl.contains(".mp4");
 
-        /*
-         * SaveTikTok MP4 HD terkadang dikirim
-         * sebagai application/octet-stream / .bin.
-         */
         if (isBin && submitClicked) {
             looksLikeVideo = true;
         }
@@ -2631,7 +2870,9 @@ public class MainActivity extends Activity {
             );
 
             currentDownloadId =
-                    manager.enqueue(request);
+                    manager.enqueue(
+                            request
+                    );
 
             int completedIndex =
                     currentIndex;
@@ -2799,10 +3040,10 @@ public class MainActivity extends Activity {
                                         ),
                                 "TikTokDownloadManager/"
                                         + String.format(
-                                                Locale.US,
-                                                "%03d",
-                                                index + 1
-                                        )
+                                        Locale.US,
+                                        "%03d",
+                                        index + 1
+                                )
                         );
 
                 if (!dir.exists()) {
@@ -2817,7 +3058,9 @@ public class MainActivity extends Activity {
 
                 try (
                         FileOutputStream out =
-                                new FileOutputStream(file)
+                                new FileOutputStream(
+                                        file
+                                )
                 ) {
 
                     out.write(
@@ -2854,10 +3097,11 @@ public class MainActivity extends Activity {
         /*
          * 1200 x 500 ms = sekitar 10 menit.
          *
-         * Jangan lanjut ke video berikutnya hanya
-         * karena timeout. DownloadManager harus
-         * benar-benar selesai atau gagal.
+         * Download berikutnya hanya dimulai
+         * setelah DownloadManager benar-benar
+         * menyatakan download selesai.
          */
+
         if (attempt >= 1200) {
 
             setStatus(
@@ -3031,9 +3275,11 @@ public class MainActivity extends Activity {
         downloadStarted = false;
 
         /*
-         * currentDownloadId sengaja masih ada
-         * ketika Finished card dibuat.
+         * currentDownloadId masih dipertahankan
+         * ketika Finished card dibuat karena
+         * addFinishedItem() membutuhkan URI file.
          */
+
         if (completedIndex >= 0 &&
                 completedIndex < urls.size()) {
 
@@ -3111,10 +3357,13 @@ public class MainActivity extends Activity {
         }
 
         if (progressText != null) {
-            progressText.setText("0 / 0");
+            progressText.setText(
+                    "0 / 0"
+            );
         }
 
         if (webStatus != null) {
+
             webStatus.setText(
                     "WebView: siap"
             );
@@ -3277,7 +3526,9 @@ public class MainActivity extends Activity {
                 icon + "\n" + label
         );
 
-        view.setTextSize(11);
+        view.setTextSize(
+                11
+        );
 
         view.setGravity(
                 Gravity.CENTER
@@ -3311,9 +3562,13 @@ public class MainActivity extends Activity {
         TextView view =
                 new TextView(this);
 
-        view.setText(value);
+        view.setText(
+                value
+        );
 
-        view.setTextSize(size);
+        view.setTextSize(
+                size
+        );
 
         view.setTextColor(
                 Color.rgb(
@@ -3337,9 +3592,17 @@ public class MainActivity extends Activity {
         Button button =
                 new Button(this);
 
-        button.setText(value);
-        button.setTextSize(14);
-        button.setAllCaps(false);
+        button.setText(
+                value
+        );
+
+        button.setTextSize(
+                14
+        );
+
+        button.setAllCaps(
+                false
+        );
 
         button.setTextColor(
                 Color.WHITE
@@ -3375,9 +3638,17 @@ public class MainActivity extends Activity {
         Button button =
                 new Button(this);
 
-        button.setText(value);
-        button.setTextSize(13);
-        button.setAllCaps(false);
+        button.setText(
+                value
+        );
+
+        button.setTextSize(
+                13
+        );
+
+        button.setAllCaps(
+                false
+        );
 
         button.setTextColor(
                 Color.rgb(
@@ -3456,7 +3727,9 @@ public class MainActivity extends Activity {
         GradientDrawable drawable =
                 new GradientDrawable();
 
-        drawable.setColor(fill);
+        drawable.setColor(
+                fill
+        );
 
         drawable.setCornerRadius(
                 dp(radius)
