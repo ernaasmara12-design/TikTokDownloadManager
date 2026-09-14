@@ -8,11 +8,11 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -32,23 +32,39 @@ import android.widget.Toast;
 
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-    private static final String SAVE_URL = "https://savetiktok.to/id";
+    private static final String SAVE_URL =
+            "https://savetiktok.to/id";
+
     private static final int REQ_STORAGE = 501;
+
     private static final int MAX_INPUT_CHECKS = 20;
-    private static final int MAX_MP4_HD_CHECKS = 30;
+    private static final int MAX_RESULT_CHECKS = 40;
 
     private EditText input;
     private LinearLayout queue;
-    private TextView progress, webStatus;
+    private TextView progress;
+    private TextView webStatus;
     private WebView webView;
 
-    private final ArrayList<String> urls = new ArrayList<>();
+    private final ArrayList<String> urls =
+            new ArrayList<>();
+
+    private final LinkedHashSet<String>
+            handledDownloadUrls =
+            new LinkedHashSet<>();
+
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
 
     private int currentIndex = -1;
 
@@ -57,13 +73,8 @@ public class MainActivity extends Activity {
     private boolean downloadStarted = false;
 
     private String currentCaption = "";
+
     private long currentDownloadId = -1L;
-
-    private final LinkedHashSet<String> handledDownloadUrls =
-            new LinkedHashSet<>();
-
-    private final Handler handler =
-            new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,89 +86,173 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
 
-        ScrollView scroll = new ScrollView(this);
+        ScrollView scroll =
+                new ScrollView(this);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(22, 22, 22, 22);
-        root.setBackgroundColor(Color.rgb(244, 245, 247));
+        LinearLayout root =
+                new LinearLayout(this);
 
-        root.addView(
-                text("TikTok Download Manager", 28)
+        root.setOrientation(
+                LinearLayout.VERTICAL
+        );
+
+        root.setPadding(
+                22,
+                22,
+                22,
+                22
+        );
+
+        root.setBackgroundColor(
+                Color.rgb(244, 245, 247)
         );
 
         root.addView(
-                text("WebView + antrean otomatis", 17)
+                text(
+                        "TikTok Download Manager",
+                        28
+                )
+        );
+
+        root.addView(
+                text(
+                        "WebView + antrean otomatis",
+                        17
+                )
         );
 
         input = new EditText(this);
-        input.setHint("Tempel link TikTok, satu per baris");
-        input.setGravity(Gravity.TOP);
+
+        input.setHint(
+                "Tempel link TikTok, satu per baris"
+        );
+
+        input.setGravity(
+                Gravity.TOP
+        );
+
         input.setMinLines(5);
 
         root.addView(
                 input,
-                new LinearLayout.LayoutParams(-1, 250)
+                new LinearLayout.LayoutParams(
+                        -1,
+                        250
+                )
         );
 
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout row =
+                new LinearLayout(this);
 
-        Button load = button("Muat Antrean");
-        Button clear = button("Bersihkan");
+        row.setOrientation(
+                LinearLayout.HORIZONTAL
+        );
+
+        Button load =
+                button("Muat Antrean");
+
+        Button clear =
+                button("Bersihkan");
 
         row.addView(
                 load,
-                new LinearLayout.LayoutParams(0, 62, 1)
+                new LinearLayout.LayoutParams(
+                        0,
+                        62,
+                        1
+                )
         );
 
-        LinearLayout.LayoutParams clearParams =
-                new LinearLayout.LayoutParams(0, 62, 1);
+        LinearLayout.LayoutParams
+                clearParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        62,
+                        1
+                );
 
-        clearParams.setMargins(10, 0, 0, 0);
+        clearParams.setMargins(
+                10,
+                0,
+                0,
+                0
+        );
 
-        row.addView(clear, clearParams);
+        row.addView(
+                clear,
+                clearParams
+        );
 
         root.addView(row);
 
-        progress = text("Progress: 0 / 0", 18);
+        progress =
+                text(
+                        "Progress: 0 / 0",
+                        18
+                );
+
         root.addView(progress);
 
-        webStatus = text("WebView: siap", 14);
+        webStatus =
+                text(
+                        "WebView: siap",
+                        14
+                );
+
         root.addView(webStatus);
 
-        Button startAll = button("Mulai Semua");
+        Button startAll =
+                button("Mulai Semua");
+
         root.addView(startAll);
 
         root.addView(
                 text(
-                        "Aplikasi memproses URL melalui halaman SaveTikTok di WebView. " +
-                        "CAPTCHA, login, rate limit, dan mekanisme keamanan tidak dilewati. " +
-                        "Jika situs meminta tindakan manual, selesaikan secara manual di WebView.",
+                        "Hasil download disimpan di " +
+                        "Download/TikTokDownloadManager. " +
+                        "Setiap video mempunyai folder sendiri " +
+                        "dan caption disimpan sebagai caption.txt.",
                         14
                 )
         );
 
-        queue = new LinearLayout(this);
-        queue.setOrientation(LinearLayout.VERTICAL);
+        queue =
+                new LinearLayout(this);
+
+        queue.setOrientation(
+                LinearLayout.VERTICAL
+        );
 
         root.addView(queue);
 
-        webView = new WebView(this);
-        webView.setVisibility(View.GONE);
+        webView =
+                new WebView(this);
+
+        webView.setVisibility(
+                View.GONE
+        );
 
         root.addView(
                 webView,
-                new LinearLayout.LayoutParams(-1, 650)
+                new LinearLayout.LayoutParams(
+                        -1,
+                        650
+                )
         );
 
         configureWebView();
 
-        load.setOnClickListener(v -> loadQueue());
+        load.setOnClickListener(
+                v -> loadQueue()
+        );
 
-        clear.setOnClickListener(v -> clearQueue());
+        clear.setOnClickListener(
+                v -> clearQueue()
+        );
 
-        startAll.setOnClickListener(v -> startAll());
+        startAll.setOnClickListener(
+                v -> startAll()
+        );
 
         scroll.addView(root);
 
@@ -167,7 +262,8 @@ public class MainActivity extends Activity {
     @SuppressLint("SetJavaScriptEnabled")
     private void configureWebView() {
 
-        WebSettings settings = webView.getSettings();
+        WebSettings settings =
+                webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -177,110 +273,122 @@ public class MainActivity extends Activity {
         settings.setAllowContentAccess(true);
 
         settings.setSupportMultipleWindows(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(false);
+
+        settings.setJavaScriptCanOpenWindowsAutomatically(
+                false
+        );
 
         settings.setUserAgentString(
                 "Mozilla/5.0 (Linux; Android 12) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                "AppleWebKit/537.36 " +
+                "(KHTML, like Gecko) " +
                 "Chrome/140.0 Mobile Safari/537.36"
         );
 
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance()
-                .setAcceptThirdPartyCookies(webView, true);
+        CookieManager cookies =
+                CookieManager.getInstance();
+
+        cookies.setAcceptCookie(true);
+
+        cookies.setAcceptThirdPartyCookies(
+                webView,
+                true
+        );
 
         webView.setWebChromeClient(
                 new WebChromeClient()
         );
 
-        webView.setWebViewClient(new WebViewClient() {
+        webView.setWebViewClient(
+                new WebViewClient() {
 
-            @Override
-            public boolean shouldOverrideUrlLoading(
-                    WebView view,
-                    WebResourceRequest request
-            ) {
-                return false;
-            }
+                    @Override
+                    public boolean shouldOverrideUrlLoading(
+                            WebView view,
+                            WebResourceRequest request
+                    ) {
+                        return false;
+                    }
 
-            @Override
-            public void onPageFinished(
-                    WebView view,
-                    String url
-            ) {
+                    @Override
+                    public void onPageFinished(
+                            WebView view,
+                            String url
+                    ) {
 
-                super.onPageFinished(view, url);
+                        super.onPageFinished(
+                                view,
+                                url
+                        );
 
-                if (!processing || currentIndex < 0) {
-                    webStatus.setText(
-                            "WebView: halaman siap"
-                    );
-                    return;
+                        if (!processing ||
+                                currentIndex < 0) {
+                            return;
+                        }
+
+                        if (!isSaveTikTokPage(url)) {
+                            return;
+                        }
+
+                        if (!submitClicked) {
+
+                            webStatus.setText(
+                                    "WebView: mencari kolom URL..."
+                            );
+
+                            handler.postDelayed(
+                                    () -> waitForInput(
+                                            urls.get(currentIndex),
+                                            0
+                                    ),
+                                    800
+                            );
+
+                        } else {
+
+                            webStatus.setText(
+                                    "WebView: menunggu hasil..."
+                            );
+                        }
+                    }
+
+                    @Override
+                    public void onReceivedError(
+                            WebView view,
+                            WebResourceRequest request,
+                            WebResourceError error
+                    ) {
+
+                        if (request.isForMainFrame()) {
+
+                            webStatus.setText(
+                                    "WebView: gagal memuat halaman"
+                            );
+                        }
+                    }
                 }
-
-                if (!isSaveTikTokPage(url)) {
-                    webStatus.setText(
-                            "WebView: membuka SaveTikTok..."
-                    );
-                    return;
-                }
-
-                if (!submitClicked) {
-
-                    webStatus.setText(
-                            "WebView: mencari kolom URL..."
-                    );
-
-                    handler.postDelayed(
-                            () -> waitForSaveTikTokInput(
-                                    urls.get(currentIndex),
-                                    0
-                            ),
-                            1000
-                    );
-
-                } else {
-
-                    webStatus.setText(
-                            "WebView: menunggu hasil..."
-                    );
-                }
-            }
-
-            @Override
-            public void onReceivedError(
-                    WebView view,
-                    WebResourceRequest request,
-                    WebResourceError error
-            ) {
-
-                if (request.isForMainFrame()) {
-
-                    webStatus.setText(
-                            "WebView: gagal memuat halaman"
-                    );
-                }
-            }
-        });
+        );
 
         webView.setDownloadListener(
-                (url,
-                 userAgent,
-                 contentDisposition,
-                 mimeType,
-                 contentLength) ->
-
-                        handleWebDownload(
-                                url,
-                                userAgent,
-                                contentDisposition,
-                                mimeType,
-                                contentLength
-                        )
+                (
+                        url,
+                        userAgent,
+                        contentDisposition,
+                        mimeType,
+                        contentLength
+                ) -> handleWebDownload(
+                        url,
+                        userAgent,
+                        contentDisposition,
+                        mimeType,
+                        contentLength
+                )
         );
     }
 
-    private boolean isSaveTikTokPage(String url) {
+    private boolean isSaveTikTokPage(
+            String url
+    ) {
 
         try {
 
@@ -288,8 +396,11 @@ public class MainActivity extends Activity {
                     Uri.parse(url).getHost();
 
             return host != null &&
-                    host.toLowerCase(Locale.US)
-                            .contains("savetiktok.to");
+                    host.toLowerCase(
+                            Locale.US
+                    ).contains(
+                            "savetiktok.to"
+                    );
 
         } catch (Exception e) {
 
@@ -302,14 +413,17 @@ public class MainActivity extends Activity {
         LinkedHashSet<String> unique =
                 new LinkedHashSet<>();
 
-        String[] lines =
+        String raw =
                 input.getText()
-                        .toString()
-                        .split("\\r?\\n");
+                        .toString();
+
+        String[] lines =
+                raw.split("\\r?\\n");
 
         for (String line : lines) {
 
-            String url = line.trim();
+            String url =
+                    line.trim();
 
             if (url.startsWith("http://") ||
                     url.startsWith("https://")) {
@@ -322,6 +436,7 @@ public class MainActivity extends Activity {
         urls.addAll(unique);
 
         currentIndex = -1;
+
         processing = false;
         submitClicked = false;
         downloadStarted = false;
@@ -331,11 +446,15 @@ public class MainActivity extends Activity {
 
         handledDownloadUrls.clear();
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
         queue.removeAllViews();
 
-        for (int i = 0; i < urls.size(); i++) {
+        for (int i = 0;
+             i < urls.size();
+             i++) {
 
             addQueueItem(
                     i,
@@ -373,18 +492,24 @@ public class MainActivity extends Activity {
 
         TextView status =
                 text(
-                        "#" + (index + 1) +
+                        "#" +
+                        (index + 1) +
                         "  Menunggu",
                         16
                 );
 
         TextView link =
-                text(url, 12);
+                text(
+                        url,
+                        12
+                );
 
         link.setMaxLines(3);
 
         Button process =
-                button("Proses Link Ini");
+                button(
+                        "Proses Link Ini"
+                );
 
         process.setOnClickListener(
                 v -> startSingle(index)
@@ -399,14 +524,37 @@ public class MainActivity extends Activity {
         queue.addView(card);
     }
 
-    private void startSingle(int index) {
+    private void startAll() {
+
+        if (urls.isEmpty()) {
+
+            Toast.makeText(
+                    this,
+                    "Muat antrean dulu.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        if (!processing) {
+
+            startSingle(0);
+        }
+    }
+
+    private void startSingle(
+            int index
+    ) {
 
         if (index < 0 ||
                 index >= urls.size()) {
             return;
         }
 
-        handler.removeCallbacksAndMessages(null);
+        handler.removeCallbacksAndMessages(
+                null
+        );
 
         currentIndex = index;
 
@@ -415,6 +563,7 @@ public class MainActivity extends Activity {
         downloadStarted = false;
 
         currentCaption = "";
+
         currentDownloadId = -1L;
 
         setStatus(
@@ -437,29 +586,12 @@ public class MainActivity extends Activity {
                 View.VISIBLE
         );
 
-        webView.loadUrl(SAVE_URL);
+        webView.loadUrl(
+                SAVE_URL
+        );
     }
 
-    private void startAll() {
-
-        if (urls.isEmpty()) {
-
-            Toast.makeText(
-                    this,
-                    "Muat antrean dulu.",
-                    Toast.LENGTH_SHORT
-            ).show();
-
-            return;
-        }
-
-        if (!processing) {
-
-            startSingle(0);
-        }
-    }
-
-    private void waitForSaveTikTokInput(
+    private void waitForInput(
             String tiktokUrl,
             int attempt
     ) {
@@ -478,7 +610,7 @@ public class MainActivity extends Activity {
 
             setStatus(
                     currentIndex,
-                    "Kolom URL SaveTikTok tidak ditemukan"
+                    "Kolom URL tidak ditemukan"
             );
 
             return;
@@ -486,30 +618,28 @@ public class MainActivity extends Activity {
 
         String js =
                 "(function(){" +
+                "var f=Array.from(" +
+                "document.querySelectorAll(" +
+                "'input,textarea'));" +
 
-                "var fields=Array.from(" +
-                "document.querySelectorAll('input,textarea')" +
-                ");" +
-
-                "var field=fields.find(function(el){" +
+                "var x=f.find(function(e){" +
 
                 "var p=(" +
-                "(el.placeholder||'')+' '+" +
-                "(el.getAttribute('aria-label')||'')+' '+" +
-                "(el.name||'')+' '+" +
-                "(el.type||'')" +
+                "(e.placeholder||'')+' '+" +
+                "(e.getAttribute('aria-label')||'')+' '+" +
+                "(e.name||'')+' '+" +
+                "(e.type||'')" +
                 ").toLowerCase();" +
 
                 "return p.includes('tautan')" +
                 "||p.includes('tiktok')" +
                 "||p.includes('link')" +
                 "||p.includes('url')" +
-                "||el.type==='url';" +
+                "||e.type==='url';" +
 
                 "});" +
 
-                "return field?'FOUND':'WAIT';" +
-
+                "return x?'FOUND':'WAIT';" +
                 "})()";
 
         webView.evaluateJavascript(
@@ -519,19 +649,17 @@ public class MainActivity extends Activity {
                     if (result != null &&
                             result.contains("FOUND")) {
 
-                        webStatus.setText(
-                                "WebView: kolom URL ditemukan..."
-                        );
-
                         handler.postDelayed(
-                                () -> injectTikTokUrl(tiktokUrl),
+                                () -> injectUrl(
+                                        tiktokUrl
+                                ),
                                 300
                         );
 
                     } else {
 
                         handler.postDelayed(
-                                () -> waitForSaveTikTokInput(
+                                () -> waitForInput(
                                         tiktokUrl,
                                         attempt + 1
                                 ),
@@ -542,7 +670,7 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void injectTikTokUrl(
+    private void injectUrl(
             String tiktokUrl
     ) {
 
@@ -552,96 +680,86 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String safeUrl =
-                JSONObject.quote(tiktokUrl);
+        String safe =
+                JSONObject.quote(
+                        tiktokUrl
+                );
 
         String js =
                 "(function(){" +
 
-                "var fields=Array.from(" +
-                "document.querySelectorAll('input,textarea')" +
-                ");" +
+                "var f=Array.from(" +
+                "document.querySelectorAll(" +
+                "'input,textarea'));" +
 
-                "var field=fields.find(function(el){" +
+                "var x=f.find(function(e){" +
 
                 "var p=(" +
-                "(el.placeholder||'')+' '+" +
-                "(el.getAttribute('aria-label')||'')+' '+" +
-                "(el.name||'')+' '+" +
-                "(el.type||'')" +
+                "(e.placeholder||'')+' '+" +
+                "(e.getAttribute('aria-label')||'')+' '+" +
+                "(e.name||'')+' '+" +
+                "(e.type||'')" +
                 ").toLowerCase();" +
 
                 "return p.includes('tautan')" +
                 "||p.includes('tiktok')" +
                 "||p.includes('link')" +
                 "||p.includes('url')" +
-                "||el.type==='url';" +
+                "||e.type==='url';" +
 
                 "});" +
 
-                "if(!field)return 'NO_FIELD';" +
+                "if(!x)return 'NO_FIELD';" +
 
-                "var proto=" +
-                "field instanceof HTMLTextAreaElement" +
+                "var proto=x instanceof " +
+                "HTMLTextAreaElement" +
                 "?HTMLTextAreaElement.prototype" +
                 ":HTMLInputElement.prototype;" +
 
-                "var desc=" +
-                "Object.getOwnPropertyDescriptor(" +
+                "var d=Object.getOwnPropertyDescriptor(" +
                 "proto,'value');" +
 
-                "if(desc&&desc.set){" +
-                "desc.set.call(field," +
-                safeUrl +
+                "if(d&&d.set)d.set.call(x," +
+                safe +
                 ");" +
-                "}else{" +
-                "field.value=" +
-                safeUrl +
+                "else x.value=" +
+                safe +
                 ";" +
-                "}" +
 
-                "field.dispatchEvent(" +
-                "new Event('input',{bubbles:true})" +
-                ");" +
+                "x.dispatchEvent(new Event(" +
+                "'input',{bubbles:true}));" +
 
-                "field.dispatchEvent(" +
-                "new Event('change',{bubbles:true})" +
-                ");" +
+                "x.dispatchEvent(new Event(" +
+                "'change',{bubbles:true}));" +
 
-                "field.focus();" +
-
-                "if(field.value!=" +
-                safeUrl +
-                ")return 'VALUE_FAILED';" +
-
-                "var buttons=Array.from(" +
+                "var bs=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,input[type=submit]," +
                 "input[type=button],a'" +
-                ")" +
-                ");" +
+                "));" +
 
-                "var downloadButton=" +
-                "buttons.find(function(el){" +
+                "var b=bs.find(function(e){" +
 
                 "var t=(" +
-                "el.innerText||" +
-                "el.textContent||" +
-                "el.value||" +
-                "el.getAttribute('aria-label')||''" +
+                "e.innerText||" +
+                "e.textContent||" +
+                "e.value||" +
+                "e.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
-                "return t==='unduh'||t==='download';" +
+                "return t==='unduh'" +
+                "||t==='download';" +
 
                 "});" +
 
-                "if(!downloadButton)" +
-                "return 'NO_DOWNLOAD_BUTTON';" +
+                "if(!b)return 'NO_BUTTON';" +
 
-                "downloadButton.click();" +
+                "b.click();" +
 
-                "return 'OK';" +
+                "return x.value===" +
+                safe +
+                "?'OK':'FAILED';" +
 
                 "})()";
 
@@ -655,40 +773,36 @@ public class MainActivity extends Activity {
                         submitClicked = true;
 
                         webStatus.setText(
-                                "WebView: URL berhasil dikirim, menunggu hasil..."
+                                "WebView: URL dikirim..."
                         );
 
                         setStatus(
                                 currentIndex,
-                                "Menunggu hasil SaveTikTok"
+                                "Menunggu hasil"
                         );
 
                         handler.postDelayed(
-                                () -> findMp4HdButton(0),
-                                2000
+                                () -> findMp4Hd(
+                                        0
+                                ),
+                                1800
                         );
 
                     } else {
 
-                        submitClicked = false;
-
-                        webStatus.setText(
-                                "WebView: URL belum berhasil dikirim, mencoba lagi..."
-                        );
-
                         handler.postDelayed(
-                                () -> waitForSaveTikTokInput(
+                                () -> waitForInput(
                                         tiktokUrl,
                                         0
                                 ),
-                                1000
+                                800
                         );
                     }
                 }
         );
     }
 
-    private void findMp4HdButton(
+    private void findMp4Hd(
             int attempt
     ) {
 
@@ -698,15 +812,15 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (attempt >= MAX_MP4_HD_CHECKS) {
+        if (attempt >= MAX_RESULT_CHECKS) {
 
             webStatus.setText(
-                    "WebView: tombol Unduh MP4 HD tidak ditemukan"
+                    "WebView: MP4 HD tidak ditemukan"
             );
 
             setStatus(
                     currentIndex,
-                    "MP4 HD belum ditemukan / perlu tindakan manual"
+                    "MP4 HD tidak ditemukan"
             );
 
             return;
@@ -715,20 +829,19 @@ public class MainActivity extends Activity {
         String js =
                 "(function(){" +
 
-                "var elements=Array.from(" +
+                "var es=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,a,input[type=button]," +
                 "input[type=submit],[role=button]'" +
-                ")" +
-                ");" +
+                "));" +
 
-                "var target=elements.find(function(el){" +
+                "var target=es.find(function(e){" +
 
                 "var t=(" +
-                "el.innerText||" +
-                "el.textContent||" +
-                "el.value||" +
-                "el.getAttribute('aria-label')||''" +
+                "e.innerText||" +
+                "e.textContent||" +
+                "e.value||" +
+                "e.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
@@ -737,93 +850,47 @@ public class MainActivity extends Activity {
 
                 "});" +
 
-                "if(!target)" +
-                "return JSON.stringify({" +
-                "state:'WAIT',caption:''});" +
-
                 "var caption='';" +
+
+                "var nodes=Array.from(" +
+                "document.querySelectorAll(" +
+                "'h1,h2,h3,h4,p,span,div'" +
+                "));" +
 
                 "var bad=/^(unduh|download|" +
                 "unduh mp4|download mp4|" +
                 "unduh mp4 hd|download mp4 hd|" +
                 "unduh mp3|download mp3|" +
-                "unduh lebih banyak video|" +
-                "share|bagikan|copy|salin)$/i;" +
+                "share|bagikan|copy|salin|" +
+                "unduh lebih banyak video)$/i;" +
 
-                "var candidates=Array.from(" +
-                "document.querySelectorAll(" +
-                "'h1,h2,h3,h4,p,span,div'" +
-                ")" +
-                ");" +
+                "for(var i=0;" +
+                "i<nodes.length;i++){" +
 
-                "for(var i=0;i<candidates.length;i++){" +
-
-                "var el=candidates[i];" +
-
-                "var t=(" +
-                "el.innerText||" +
-                "el.textContent||''" +
+                "var s=(" +
+                "nodes[i].innerText||" +
+                "nodes[i].textContent||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim();" +
 
-                "if(!t||t.length<3||t.length>500" +
-                "||bad.test(t)" +
-                "||/https?:\\/\\//i.test(t))" +
-                "continue;" +
+                "if(s.length>=3&&" +
+                "s.length<=500&&" +
+                "!bad.test(s)&&" +
+                "!/savetiktok|tiktok download manager/i" +
+                ".test(s)&&" +
+                "(s.indexOf('#')>=0||" +
+                "s.length>20)){" +
 
-                "if(/(^|\\s)#?[a-zA-Z0-9_]*" +
-                "[a-zA-Z0-9][a-zA-Z0-9_-]*(#|\\s|$)/" +
-                ".test(t)" +
-
-                "&& !/savetiktok|" +
-                "tiktok download manager|" +
-                "internet|video|foto/i.test(t)){" +
-
-                "caption=t;" +
-
-                "}" +
-
-                "}" +
-
-                "if(!caption){" +
-
-                "var prev=target.parentElement;" +
-
-                "for(var k=0;k<4&&prev;k++," +
-                "prev=prev.parentElement){" +
-
-                "var tx=(" +
-                "prev.innerText||''" +
-                ").replace(/\\s+/g,' ')" +
-                ".trim();" +
-
-                "var lines=tx.split(/\\n/)" +
-                ".map(function(x){return x.trim();})" +
-                ".filter(Boolean);" +
-
-                "for(var j=0;j<lines.length;j++){" +
-
-                "if(lines[j].length>=3" +
-                "&&lines[j].length<=500" +
-                "&&!bad.test(lines[j])" +
-                "&&!/^(unduh|download|share|bagikan)/i.test(lines[j])){" +
-
-                "caption=lines[j];" +
-
-                "break;" +
-
-                "}" +
-
+                "caption=s;" +
                 "}" +
 
                 "if(caption)break;" +
-
-                "}" +
-
                 "}" +
 
                 "return JSON.stringify({" +
-                "state:'FOUND',caption:caption});" +
+                "found:!!target," +
+                "caption:caption" +
+                "});" +
 
                 "})()";
 
@@ -831,74 +898,97 @@ public class MainActivity extends Activity {
                 js,
                 result -> {
 
-                    if (result != null &&
-                            result.contains(
-                                    "\\\"state\\\":\\\"FOUND\\\""
-                            )) {
+                    if (result == null) {
 
-                        try {
-
-                            Object parsed =
-                                    new org.json.JSONTokener(
-                                            result
-                                    ).nextValue();
-
-                            JSONObject obj =
-                                    parsed instanceof JSONObject
-                                            ? (JSONObject) parsed
-                                            : new JSONObject(
-                                                    String.valueOf(parsed)
-                                            );
-
-                            currentCaption =
-                                    obj.optString(
-                                            "caption",
-                                            ""
-                                    ).trim();
-
-                        } catch (Exception ignored) {
-
-                            currentCaption = "";
-                        }
-
-                        clickMp4HdButton();
-
-                    } else {
-
-                        webStatus.setText(
-                                "WebView: menunggu tombol MP4 HD..."
+                        retryFindMp4Hd(
+                                attempt
                         );
 
-                        handler.postDelayed(
-                                () -> findMp4HdButton(
-                                        attempt + 1
-                                ),
-                                500
+                        return;
+                    }
+
+                    try {
+
+                        String clean =
+                                result;
+
+                        if (clean.startsWith("\"")) {
+
+                            clean =
+                                    new org.json.JSONTokener(
+                                            clean
+                                    ).nextValue()
+                                            .toString();
+                        }
+
+                        JSONObject obj =
+                                new JSONObject(
+                                        clean
+                                );
+
+                        boolean found =
+                                obj.optBoolean(
+                                        "found",
+                                        false
+                                );
+
+                        currentCaption =
+                                obj.optString(
+                                        "caption",
+                                        ""
+                                ).trim();
+
+                        if (found) {
+
+                            clickMp4Hd();
+
+                        } else {
+
+                            retryFindMp4Hd(
+                                    attempt
+                            );
+                        }
+
+                    } catch (Exception e) {
+
+                        retryFindMp4Hd(
+                                attempt
                         );
                     }
                 }
         );
     }
 
-    private void clickMp4HdButton() {
+    private void retryFindMp4Hd(
+            int attempt
+    ) {
+
+        handler.postDelayed(
+                () -> findMp4Hd(
+                        attempt + 1
+                ),
+                500
+        );
+    }
+
+    private void clickMp4Hd() {
 
         String js =
                 "(function(){" +
 
-                "var elements=Array.from(" +
+                "var es=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,a,input[type=button]," +
                 "input[type=submit],[role=button]'" +
-                ")" +
-                ");" +
+                "));" +
 
-                "var target=elements.find(function(el){" +
+                "var b=es.find(function(e){" +
 
                 "var t=(" +
-                "el.innerText||" +
-                "el.textContent||" +
-                "el.value||" +
-                "el.getAttribute('aria-label')||''" +
+                "e.innerText||" +
+                "e.textContent||" +
+                "e.value||" +
+                "e.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
@@ -907,9 +997,9 @@ public class MainActivity extends Activity {
 
                 "});" +
 
-                "if(!target)return 'WAIT';" +
+                "if(!b)return 'WAIT';" +
 
-                "target.click();" +
+                "b.click();" +
 
                 "return 'CLICKED';" +
 
@@ -923,7 +1013,7 @@ public class MainActivity extends Activity {
                             result.contains("CLICKED")) {
 
                         webStatus.setText(
-                                "WebView: MP4 HD dipilih, menunggu download..."
+                                "WebView: MP4 HD dipilih..."
                         );
 
                         setStatus(
@@ -933,12 +1023,8 @@ public class MainActivity extends Activity {
 
                     } else {
 
-                        webStatus.setText(
-                                "WebView: tombol MP4 HD hilang, mencoba lagi..."
-                        );
-
                         handler.postDelayed(
-                                () -> findMp4HdButton(0),
+                                () -> findMp4Hd(0),
                                 500
                         );
                     }
@@ -965,124 +1051,125 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String normalizedUrl =
+        String normalized =
                 url.trim();
 
         if (handledDownloadUrls.contains(
-                normalizedUrl)) {
+                normalized
+        )) {
             return;
         }
 
-        String lowerMime =
+        String mime =
                 mimeType == null
                         ? ""
                         : mimeType.toLowerCase(
                                 Locale.US
                         );
 
-        String lowerUrl =
-                normalizedUrl.toLowerCase(
-                        Locale.US
-                );
-
-        String lowerDisposition =
+        String disposition =
                 contentDisposition == null
                         ? ""
                         : contentDisposition.toLowerCase(
                                 Locale.US
                         );
 
-        boolean looksLikeHtml =
-                lowerMime.contains("text/html") ||
-                lowerMime.contains("application/xhtml");
+        String lowerUrl =
+                normalized.toLowerCase(
+                        Locale.US
+                );
 
-        if (looksLikeHtml) {
+        /*
+         * PENTING:
+         *
+         * SaveTikTok kadang mengirim video
+         * dengan MIME application/octet-stream
+         * atau URL yang terlihat seperti .bin.
+         *
+         * Karena tombol yang kita klik adalah
+         * MP4 HD, response tersebut kita perlakukan
+         * sebagai file video.
+         */
 
-            webStatus.setText(
-                    "WebView: download ditolak karena bukan video"
-            );
+        boolean html =
+                mime.contains("text/html") ||
+                mime.contains("application/xhtml");
 
+        if (html) {
             return;
         }
 
-        boolean isBin =
-                lowerMime.contains(
+        boolean explicitNonVideo =
+                mime.contains("audio/") ||
+                mime.contains("image/") ||
+                mime.contains("text/");
+
+        if (explicitNonVideo) {
+            return;
+        }
+
+        boolean video =
+                mime.startsWith("video/") ||
+                mime.contains("mp4") ||
+                disposition.contains(".mp4") ||
+                lowerUrl.contains(".mp4") ||
+
+                /*
+                 * application/octet-stream /
+                 * .bin diterima karena berasal
+                 * dari tombol MP4 HD SaveTikTok.
+                 */
+                mime.contains(
                         "application/octet-stream"
                 ) ||
 
-                lowerDisposition.contains(".bin") ||
+                disposition.contains(".bin") ||
 
-                lowerUrl.matches(
-                        ".*\\.bin(?:[?#].*)?$"
-                );
+                lowerUrl.contains(".bin");
 
-        boolean looksLikeVideo =
-                lowerMime.startsWith("video/") ||
-
-                lowerMime.contains("mp4") ||
-
-                lowerDisposition.contains(".mp4") ||
-
-                lowerUrl.contains(".mp4") ||
-
-                (contentLength > 0 && !isBin);
-
-        /*
-         * Response BIN tidak pernah dimasukkan
-         * sebagai download aplikasi.
-         */
-        if (isBin &&
-                !lowerMime.startsWith("video/")) {
-
-            webStatus.setText(
-                    "WebView: file BIN diabaikan"
-            );
-
-            return;
-        }
-
-        if (!looksLikeVideo) {
-
-            webStatus.setText(
-                    "WebView: format download bukan MP4"
-            );
-
+        if (!video) {
             return;
         }
 
         handledDownloadUrls.add(
-                normalizedUrl
+                normalized
         );
 
-        if (handledDownloadUrls.size() > 20) {
+        if (handledDownloadUrls.size() > 30) {
 
             String first =
                     handledDownloadUrls
                             .iterator()
                             .next();
 
-            handledDownloadUrls.remove(first);
+            handledDownloadUrls.remove(
+                    first
+            );
+        }
+
+        /*
+         * Pengaman utama agar satu video
+         * tidak dibuat dua download.
+         */
+        if (downloadStarted) {
+            return;
         }
 
         downloadStarted = true;
 
         webStatus.setText(
-                "WebView: file MP4 ditemukan, memulai download..."
+                "WebView: video ditemukan, download..."
         );
 
         enqueueDownload(
-                normalizedUrl,
-                userAgent,
-                mimeType,
-                contentDisposition
+                normalized,
+                userAgent
         );
     }
 
     private void enqueueDownload(
             String url,
-            String userAgent,
-            String mimeType,
-            String contentDisposition
+            String userAgent
     ) {
 
         try {
@@ -1092,6 +1179,13 @@ public class MainActivity extends Activity {
                             getSystemService(
                                     Context.DOWNLOAD_SERVICE
                             );
+
+            if (manager == null) {
+
+                throw new Exception(
+                        "DownloadManager tidak tersedia"
+                );
+            }
 
             DownloadManager.Request request =
                     new DownloadManager.Request(
@@ -1107,13 +1201,13 @@ public class MainActivity extends Activity {
                     "TikTok Download Manager"
             );
 
+            request.setMimeType(
+                    "video/mp4"
+            );
+
             request.setNotificationVisibility(
                     DownloadManager.Request
                             .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-            );
-
-            request.setMimeType(
-                    "video/mp4"
             );
 
             if (userAgent != null &&
@@ -1126,7 +1220,8 @@ public class MainActivity extends Activity {
             }
 
             String cookie =
-                    CookieManager.getInstance()
+                    CookieManager
+                            .getInstance()
                             .getCookie(url);
 
             if (cookie != null &&
@@ -1144,27 +1239,35 @@ public class MainActivity extends Activity {
             );
 
             /*
-             * Folder khusus:
+             * Folder:
              *
              * Download/
-             * └── TikTokDownloadManager/
-             *     └── 001/
-             *         └── video.mp4
+             *   TikTokDownloadManager/
+             *      001/
+             *         video.mp4
              */
-            String folder =
-                    "TikTokDownloadManager/" +
+            String number =
                     String.format(
                             Locale.US,
                             "%03d",
                             currentIndex + 1
                     );
 
+            String folder =
+                    "TikTokDownloadManager/" +
+                    number;
+
             String filename =
                     "video.mp4";
 
             /*
              * Jangan gunakan nama file dari server.
-             * Selalu gunakan video.mp4.
+             *
+             * Walaupun server mengirim:
+             * SaveTikTok.bin
+             *
+             * hasil akhirnya:
+             * video.mp4
              */
             request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
@@ -1172,52 +1275,36 @@ public class MainActivity extends Activity {
             );
 
             currentDownloadId =
-                    manager.enqueue(request);
+                    manager.enqueue(
+                            request
+                    );
 
-            int completedIndex =
+            int index =
                     currentIndex;
 
             setStatus(
-                    completedIndex,
+                    index,
                     "Download dimulai"
             );
 
             webStatus.setText(
                     "WebView: download dimulai → " +
-                    "Download/TikTokDownloadManager/" +
-                    String.format(
-                            Locale.US,
-                            "%03d",
-                            completedIndex + 1
-                    )
+                    "Download/" +
+                    folder +
+                    "/video.mp4"
             );
 
             progress.setText(
                     "Progress: " +
-                    (completedIndex + 1) +
+                    (index + 1) +
                     " / " +
                     urls.size()
             );
 
-            /*
-             * Simpan caption di folder yang sama.
-             */
-            saveCaptionFile(
-                    completedIndex
-            );
-
-            Toast.makeText(
-                    this,
-                    "Download dimulai: " +
-                    folder +
-                    "/video.mp4",
-                    Toast.LENGTH_SHORT
-            ).show();
-
             waitForDownloadCompletion(
                     manager,
                     currentDownloadId,
-                    completedIndex,
+                    index,
                     0
             );
 
@@ -1228,7 +1315,7 @@ public class MainActivity extends Activity {
 
             setStatus(
                     currentIndex,
-                    "Gagal memulai download"
+                    "Gagal download"
             );
 
             webStatus.setText(
@@ -1238,172 +1325,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void saveCaptionFile(
-            int index
-    ) {
-
-        try {
-
-            String caption =
-                    currentCaption == null
-                            ? ""
-                            : currentCaption.trim();
-
-            String folder =
-                    Environment.DIRECTORY_DOWNLOADS +
-                    "/TikTokDownloadManager/" +
-                    String.format(
-                            Locale.US,
-                            "%03d",
-                            index + 1
-                    );
-
-            String textContent =
-                    caption.isEmpty()
-                            ? "Caption tidak ditemukan."
-                            : caption;
-
-            if (Build.VERSION.SDK_INT >=
-                    Build.VERSION_CODES.Q) {
-
-                android.content.ContentValues values =
-                        new android.content.ContentValues();
-
-                values.put(
-                        android.provider.MediaStore.Downloads
-                                .DISPLAY_NAME,
-                        "caption.txt"
-                );
-
-                values.put(
-                        android.provider.MediaStore.Downloads
-                                .MIME_TYPE,
-                        "text/plain"
-                );
-
-                values.put(
-                        android.provider.MediaStore.Downloads
-                                .RELATIVE_PATH,
-                        folder
-                );
-
-                values.put(
-                        android.provider.MediaStore.Downloads
-                                .IS_PENDING,
-                        1
-                );
-
-                Uri uri =
-                        getContentResolver().insert(
-                                android.provider.MediaStore.Downloads
-                                        .EXTERNAL_CONTENT_URI,
-                                values
-                        );
-
-                if (uri != null) {
-
-                    try (
-                            java.io.OutputStream out =
-                                    getContentResolver()
-                                            .openOutputStream(uri)
-                    ) {
-
-                        if (out != null) {
-
-                            out.write(
-                                    textContent.getBytes(
-                                            java.nio.charset.StandardCharsets
-                                                    .UTF_8
-                                    )
-                            );
-                        }
-                    }
-
-                    values.clear();
-
-                    values.put(
-                            android.provider.MediaStore.Downloads
-                                    .IS_PENDING,
-                            0
-                    );
-
-                    getContentResolver().update(
-                            uri,
-                            values,
-                            null,
-                            null
-                    );
-                }
-
-            } else {
-
-                java.io.File dir =
-                        new java.io.File(
-                                Environment
-                                        .getExternalStoragePublicDirectory(
-                                                Environment
-                                                        .DIRECTORY_DOWNLOADS
-                                        ),
-                                "TikTokDownloadManager/" +
-                                String.format(
-                                        Locale.US,
-                                        "%03d",
-                                        index + 1
-                                )
-                        );
-
-                if (!dir.exists()) {
-                    dir.mkdirs();
-                }
-
-                java.io.File file =
-                        new java.io.File(
-                                dir,
-                                "caption.txt"
-                        );
-
-                try (
-                        java.io.FileOutputStream out =
-                                new java.io.FileOutputStream(
-                                        file
-                                )
-                ) {
-
-                    out.write(
-                            textContent.getBytes(
-                                    "UTF-8"
-                            )
-                    );
-                }
-            }
-
-        } catch (Exception e) {
-
-            webStatus.setText(
-                    "WebView: video diproses, caption gagal disimpan"
-            );
-        }
-    }
-
     private void waitForDownloadCompletion(
             DownloadManager manager,
-            long downloadId,
-            int completedIndex,
+            long id,
+            int index,
             int attempt
     ) {
 
-        if (attempt >= 120) {
+        if (attempt >= 240) {
 
             setStatus(
-                    completedIndex,
+                    index,
                     "Download berjalan"
             );
 
-            handler.postDelayed(
-                    () -> finishCurrentAndNext(
-                            completedIndex
-                    ),
-                    1000
+            /*
+             * Jangan langsung membuat video dianggap
+             * selesai hanya karena timeout.
+             */
+            processing = false;
+
+            webStatus.setText(
+                    "WebView: download masih berjalan"
             );
 
             return;
@@ -1412,9 +1355,7 @@ public class MainActivity extends Activity {
         DownloadManager.Query query =
                 new DownloadManager.Query();
 
-        query.setFilterById(
-                downloadId
-        );
+        query.setFilterById(id);
 
         try (
                 android.database.Cursor cursor =
@@ -1436,7 +1377,7 @@ public class MainActivity extends Activity {
                         DownloadManager.STATUS_SUCCESSFUL) {
 
                     setStatus(
-                            completedIndex,
+                            index,
                             "Selesai"
                     );
 
@@ -1444,9 +1385,17 @@ public class MainActivity extends Activity {
                             "WebView: download selesai"
                     );
 
+                    /*
+                     * Caption baru disimpan setelah
+                     * download video berhasil.
+                     */
+                    saveCaptionFile(
+                            index
+                    );
+
                     handler.postDelayed(
                             () -> finishCurrentAndNext(
-                                    completedIndex
+                                    index
                             ),
                             700
                     );
@@ -1465,12 +1414,9 @@ public class MainActivity extends Activity {
                                     )
                             );
 
-                    downloadStarted = false;
-                    processing = false;
-
                     setStatus(
-                            completedIndex,
-                            "Gagal download (" +
+                            index,
+                            "Gagal (" +
                             reason +
                             ")"
                     );
@@ -1478,6 +1424,9 @@ public class MainActivity extends Activity {
                     webStatus.setText(
                             "WebView: download gagal"
                     );
+
+                    processing = false;
+                    downloadStarted = false;
 
                     return;
                 }
@@ -1505,15 +1454,14 @@ public class MainActivity extends Activity {
                                     0,
                                     Math.min(
                                             100,
-                                            (
-                                                    downloaded *
-                                                    100L
-                                            ) / total
+                                            downloaded *
+                                            100L /
+                                            total
                                     )
                             );
 
                     setStatus(
-                            completedIndex,
+                            index,
                             "Download " +
                             percent +
                             "%"
@@ -1528,7 +1476,7 @@ public class MainActivity extends Activity {
                 } else {
 
                     setStatus(
-                            completedIndex,
+                            index,
                             "Download berjalan"
                     );
                 }
@@ -1540,12 +1488,174 @@ public class MainActivity extends Activity {
         handler.postDelayed(
                 () -> waitForDownloadCompletion(
                         manager,
-                        downloadId,
-                        completedIndex,
+                        id,
+                        index,
                         attempt + 1
                 ),
                 500
         );
+    }
+
+    private void saveCaptionFile(
+            int index
+    ) {
+
+        String caption =
+                currentCaption == null
+                        ? ""
+                        : currentCaption.trim();
+
+        if (caption.isEmpty()) {
+
+            caption =
+                    "Caption tidak ditemukan.";
+        }
+
+        try {
+
+            String number =
+                    String.format(
+                            Locale.US,
+                            "%03d",
+                            index + 1
+                    );
+
+            String relativePath =
+                    Environment.DIRECTORY_DOWNLOADS +
+                    "/TikTokDownloadManager/" +
+                    number;
+
+            /*
+             * Android 10+
+             */
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.Q) {
+
+                android.content.ContentValues
+                        values =
+                        new android.content.ContentValues();
+
+                values.put(
+                        android.provider.MediaStore.Downloads
+                                .DISPLAY_NAME,
+                        "caption.txt"
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads
+                                .MIME_TYPE,
+                        "text/plain"
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads
+                                .RELATIVE_PATH,
+                        relativePath
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads
+                                .IS_PENDING,
+                        1
+                );
+
+                Uri uri =
+                        getContentResolver().insert(
+                                android.provider.MediaStore
+                                        .Downloads
+                                        .EXTERNAL_CONTENT_URI,
+                                values
+                        );
+
+                if (uri != null) {
+
+                    try (
+                            OutputStream output =
+                                    getContentResolver()
+                                            .openOutputStream(
+                                                    uri
+                                            )
+                    ) {
+
+                        if (output != null) {
+
+                            output.write(
+                                    caption.getBytes(
+                                            StandardCharsets.UTF_8
+                                    )
+                            );
+                        }
+                    }
+
+                    android.content.ContentValues
+                            done =
+                            new android.content.ContentValues();
+
+                    done.put(
+                            android.provider.MediaStore.Downloads
+                                    .IS_PENDING,
+                            0
+                    );
+
+                    getContentResolver().update(
+                            uri,
+                            done,
+                            null,
+                            null
+                    );
+                }
+
+            } else {
+
+                /*
+                 * Android 9 ke bawah.
+                 */
+                File base =
+                        Environment
+                                .getExternalStoragePublicDirectory(
+                                        Environment
+                                                .DIRECTORY_DOWNLOADS
+                                );
+
+                File folder =
+                        new File(
+                                base,
+                                "TikTokDownloadManager/" +
+                                number
+                        );
+
+                if (!folder.exists()) {
+                    folder.mkdirs();
+                }
+
+                File captionFile =
+                        new File(
+                                folder,
+                                "caption.txt"
+                        );
+
+                try (
+                        FileOutputStream output =
+                                new FileOutputStream(
+                                        captionFile
+                                )
+                ) {
+
+                    output.write(
+                            caption.getBytes(
+                                    StandardCharsets.UTF_8
+                            )
+                    );
+                }
+            }
+
+        } catch (Exception e) {
+
+            webStatus.setText(
+                    "WebView: video selesai, " +
+                    "caption gagal disimpan"
+            );
+        }
     }
 
     private void finishCurrentAndNext(
@@ -1557,6 +1667,7 @@ public class MainActivity extends Activity {
         downloadStarted = false;
 
         currentDownloadId = -1L;
+
         currentCaption = "";
 
         int next =
@@ -1570,10 +1681,6 @@ public class MainActivity extends Activity {
 
             currentIndex = -1;
 
-            webStatus.setText(
-                    "WebView: semua antrean selesai"
-            );
-
             progress.setText(
                     "Progress: " +
                     urls.size() +
@@ -1581,9 +1688,13 @@ public class MainActivity extends Activity {
                     urls.size()
             );
 
+            webStatus.setText(
+                    "WebView: semua antrean selesai"
+            );
+
             Toast.makeText(
                     this,
-                    "Semua antrean sudah diproses.",
+                    "Semua download selesai.",
                     Toast.LENGTH_LONG
             ).show();
         }
@@ -1604,6 +1715,7 @@ public class MainActivity extends Activity {
         downloadStarted = false;
 
         currentCaption = "";
+
         currentDownloadId = -1L;
 
         handledDownloadUrls.clear();
@@ -1708,12 +1820,13 @@ public class MainActivity extends Activity {
 
     private void requestStorageIfNeeded() {
 
-        if (android.os.Build.VERSION.SDK_INT >= 23 &&
-                android.os.Build.VERSION.SDK_INT <= 28 &&
+        if (Build.VERSION.SDK_INT >= 23 &&
+                Build.VERSION.SDK_INT <= 28 &&
                 checkSelfPermission(
                         Manifest.permission
                                 .WRITE_EXTERNAL_STORAGE
-                ) != PackageManager.PERMISSION_GRANTED) {
+                ) !=
+                PackageManager.PERMISSION_GRANTED) {
 
             requestPermissions(
                     new String[]{
@@ -1745,7 +1858,8 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
 
         if (webView != null &&
-                webView.getVisibility() == View.VISIBLE &&
+                webView.getVisibility() ==
+                        View.VISIBLE &&
                 webView.canGoBack()) {
 
             webView.goBack();
