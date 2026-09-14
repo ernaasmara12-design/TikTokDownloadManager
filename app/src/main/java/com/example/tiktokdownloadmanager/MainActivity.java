@@ -56,23 +56,19 @@ public class MainActivity extends android.app.Activity {
 
     private WebView webView;
 
-    private boolean pageReady = false;
-
     // ============================================================
-    // QUEUE
+    // IMPORTANT VARIABLES
     // ============================================================
 
-    private final ArrayList<String> urlQueue =
-            new ArrayList<>();
+    private EditText input;
 
-    private int currentIndex = 0;
-
-    private String currentTikTokUrl = "";
-    private String currentCaption = "";
+    private DownloadManager downloadManager;
 
     // ============================================================
     // PROCESS STATE
     // ============================================================
+
+    private boolean pageReady = false;
 
     private boolean processing = false;
 
@@ -85,28 +81,59 @@ public class MainActivity extends android.app.Activity {
     private long currentDownloadId = -1;
 
     // ============================================================
-    // UI
+    // CURRENT VIDEO
+    // ============================================================
+
+    private String currentTikTokUrl = "";
+
+    private String currentCaption = "";
+
+    // ============================================================
+    // QUEUE
+    // ============================================================
+
+    private final ArrayList<String> urlQueue =
+            new ArrayList<>();
+
+    private int currentIndex = 0;
+
+    // ============================================================
+    // UI PAGES
     // ============================================================
 
     private FrameLayout pageContainer;
 
     private View downloadPage;
+
     private View progressPage;
+
     private View finishedPage;
 
+    private int currentPage = 0;
+
+    // ============================================================
+    // QUEUE UI
+    // ============================================================
+
     private LinearLayout queue;
+
     private LinearLayout finishedList;
 
     private TextView emptyProgressText;
-    private TextView emptyFinishedText;
 
-    private TextView navDownload;
-    private TextView navProgress;
-    private TextView navFinished;
+    private TextView emptyFinishedText;
 
     private Button startAllButton;
 
-    private int currentPage = 0;
+    // ============================================================
+    // BOTTOM NAV
+    // ============================================================
+
+    private TextView navDownload;
+
+    private TextView navProgress;
+
+    private TextView navFinished;
 
     // ============================================================
     // DOWNLOAD RECEIVER
@@ -123,6 +150,7 @@ public class MainActivity extends android.app.Activity {
 
                     if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE
                             .equals(intent.getAction())) {
+
                         return;
                     }
 
@@ -149,6 +177,14 @@ public class MainActivity extends android.app.Activity {
     ) {
 
         super.onCreate(savedInstanceState);
+
+        // PENTING:
+        // DownloadManager harus diinisialisasi.
+        downloadManager =
+                (DownloadManager)
+                        getSystemService(
+                                DOWNLOAD_SERVICE
+                        );
 
         buildUi();
 
@@ -208,9 +244,9 @@ public class MainActivity extends android.app.Activity {
             );
         }
 
-        // --------------------------------------------------------
-        // PAGE FINISHED
-        // --------------------------------------------------------
+        // ========================================================
+        // WEBVIEW CLIENT
+        // ========================================================
 
         webView.setWebViewClient(
                 new WebViewClient() {
@@ -228,9 +264,8 @@ public class MainActivity extends android.app.Activity {
 
                         pageReady = true;
 
-                        // Jangan langsung inject.
-                        // Beri waktu halaman SaveTikTok
-                        // menyelesaikan JavaScript-nya.
+                        // Jika sedang memproses video,
+                        // coba masukkan URL setelah halaman siap.
                         if (processing) {
 
                             handler.postDelayed(
@@ -239,7 +274,11 @@ public class MainActivity extends android.app.Activity {
                                         @Override
                                         public void run() {
 
-                                            injectTikTokUrl();
+                                            if (processing
+                                                    && !submitClicked) {
+
+                                                injectTikTokUrl();
+                                            }
                                         }
                                     },
                                     1500
@@ -249,9 +288,9 @@ public class MainActivity extends android.app.Activity {
                 }
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // DOWNLOAD LISTENER
-        // --------------------------------------------------------
+        // ========================================================
 
         webView.setDownloadListener(
                 new DownloadListener() {
@@ -275,9 +314,9 @@ public class MainActivity extends android.app.Activity {
                 }
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // HIDDEN WEBVIEW
-        // --------------------------------------------------------
+        // ========================================================
 
         FrameLayout hiddenContainer =
                 new FrameLayout(this);
@@ -336,9 +375,9 @@ public class MainActivity extends android.app.Activity {
                 )
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // PAGE CONTAINER
-        // --------------------------------------------------------
+        // ========================================================
 
         pageContainer =
                 new FrameLayout(this);
@@ -352,9 +391,9 @@ public class MainActivity extends android.app.Activity {
                 )
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // CREATE PAGES
-        // --------------------------------------------------------
+        // ========================================================
 
         downloadPage =
                 buildDownloadPage();
@@ -369,9 +408,9 @@ public class MainActivity extends android.app.Activity {
                 downloadPage
         );
 
-        // --------------------------------------------------------
-        // BOTTOM NAVIGATION
-        // --------------------------------------------------------
+        // ========================================================
+        // BOTTOM NAV
+        // ========================================================
 
         LinearLayout bottomNav =
                 new LinearLayout(this);
@@ -434,15 +473,36 @@ public class MainActivity extends android.app.Activity {
         );
 
         navDownload.setOnClickListener(
-                v -> showPage(0)
+                new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+
+                        showPage(0);
+                    }
+                }
         );
 
         navProgress.setOnClickListener(
-                v -> showPage(1)
+                new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+
+                        showPage(1);
+                    }
+                }
         );
 
         navFinished.setOnClickListener(
-                v -> showPage(2)
+                new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+
+                        showPage(2);
+                    }
+                }
         );
 
         root.addView(
@@ -524,7 +584,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // NAVIGATION COLOR
+    // UPDATE NAVIGATION
     // ============================================================
 
     private void updateNavigation() {
@@ -575,6 +635,10 @@ public class MainActivity extends android.app.Activity {
                 24
         );
 
+        // ========================================================
+        // TITLE
+        // ========================================================
+
         TextView title =
                 new TextView(this);
 
@@ -602,6 +666,10 @@ public class MainActivity extends android.app.Activity {
         content.addView(
                 title
         );
+
+        // ========================================================
+        // SUBTITLE
+        // ========================================================
 
         TextView subtitle =
                 new TextView(this);
@@ -636,9 +704,9 @@ public class MainActivity extends android.app.Activity {
                 subtitleParams
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // URL CARD
-        // --------------------------------------------------------
+        // ========================================================
 
         LinearLayout urlCard =
                 createCard();
@@ -667,6 +735,10 @@ public class MainActivity extends android.app.Activity {
                 urlTitle
         );
 
+        // ========================================================
+        // INPUT
+        // ========================================================
+
         input =
                 new EditText(this);
 
@@ -678,6 +750,7 @@ public class MainActivity extends android.app.Activity {
                 14
         );
 
+        // Bisa paste banyak URL.
         input.setSingleLine(
                 false
         );
@@ -719,6 +792,10 @@ public class MainActivity extends android.app.Activity {
                 inputParams
         );
 
+        // ========================================================
+        // ADD BUTTON
+        // ========================================================
+
         Button addButton =
                 new Button(this);
 
@@ -731,19 +808,23 @@ public class MainActivity extends android.app.Activity {
         );
 
         addButton.setOnClickListener(
-                v -> {
+                new View.OnClickListener() {
 
-                    String text =
-                            input.getText()
-                                    .toString();
+                    @Override
+                    public void onClick(View v) {
 
-                    addMultipleUrls(
-                            text
-                    );
+                        String text =
+                                input.getText()
+                                        .toString();
 
-                    input.setText("");
+                        addMultipleUrls(
+                                text
+                        );
 
-                    showPage(1);
+                        input.setText("");
+
+                        showPage(1);
+                    }
                 }
         );
 
@@ -755,9 +836,9 @@ public class MainActivity extends android.app.Activity {
                 urlCard
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // PLATFORM
-        // --------------------------------------------------------
+        // ========================================================
 
         LinearLayout platformCard =
                 createCard();
@@ -816,9 +897,9 @@ public class MainActivity extends android.app.Activity {
                 platformCard
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // HOW TO
-        // --------------------------------------------------------
+        // ========================================================
 
         LinearLayout howCard =
                 createCard();
@@ -1047,9 +1128,9 @@ public class MainActivity extends android.app.Activity {
                 subtitleParams
         );
 
-        // --------------------------------------------------------
-        // MULAI SEMUA
-        // --------------------------------------------------------
+        // ========================================================
+        // START ALL
+        // ========================================================
 
         startAllButton =
                 new Button(this);
@@ -1063,16 +1144,23 @@ public class MainActivity extends android.app.Activity {
         );
 
         startAllButton.setOnClickListener(
-                v -> startAll()
+                new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+
+                        startAll();
+                    }
+                }
         );
 
         content.addView(
                 startAllButton
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // QUEUE
-        // --------------------------------------------------------
+        // ========================================================
 
         queue =
                 new LinearLayout(this);
@@ -1276,7 +1364,9 @@ public class MainActivity extends android.app.Activity {
             String text
     ) {
 
-        if (text == null) {
+        if (text == null
+                || text.trim().isEmpty()) {
+
             return;
         }
 
@@ -1422,38 +1512,12 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // UPDATE EMPTY
-    // ============================================================
-
-    private void updateEmptyStates() {
-
-        if (emptyProgressText != null) {
-
-            emptyProgressText.setVisibility(
-                    urlQueue.isEmpty()
-                            ? View.VISIBLE
-                            : View.GONE
-            );
-        }
-
-        if (emptyFinishedText != null
-                && finishedList != null) {
-
-            emptyFinishedText.setVisibility(
-                    finishedList.getChildCount() == 0
-                            ? View.VISIBLE
-                            : View.GONE
-            );
-        }
-    }
-
-    // ============================================================
     // SET STATUS
     // ============================================================
 
     private void setStatus(
             int index,
-            String statusText
+            String text
     ) {
 
         if (queue == null) {
@@ -1480,8 +1544,34 @@ public class MainActivity extends android.app.Activity {
 
             ((TextView) status)
                     .setText(
-                            statusText
+                            text
                     );
+        }
+    }
+
+    // ============================================================
+    // UPDATE EMPTY STATES
+    // ============================================================
+
+    private void updateEmptyStates() {
+
+        if (emptyProgressText != null) {
+
+            emptyProgressText.setVisibility(
+                    urlQueue.isEmpty()
+                            ? View.VISIBLE
+                            : View.GONE
+            );
+        }
+
+        if (emptyFinishedText != null
+                && finishedList != null) {
+
+            emptyFinishedText.setVisibility(
+                    finishedList.getChildCount() == 0
+                            ? View.VISIBLE
+                            : View.GONE
+            );
         }
     }
 
@@ -1544,27 +1634,23 @@ public class MainActivity extends android.app.Activity {
 
         showPage(1);
 
-        // --------------------------------------------------------
-        // PENTING
-        // --------------------------------------------------------
+        // ========================================================
+        // RESET WEBVIEW PAGE
+        // ========================================================
 
         pageReady = false;
 
-        // Bersihkan halaman lama.
         webView.stopLoading();
 
-        // Buka SaveTikTok lagi untuk URL berikutnya.
         webView.loadUrl(
                 SAVE_TIKTOK_URL
         );
 
-        // --------------------------------------------------------
-        // FALLBACK TIMER
+        // ========================================================
+        // FALLBACK
         //
-        // Jangan hanya bergantung kepada onPageFinished().
-        // Jika callback tidak sesuai, kita tetap mencoba
-        // memasukkan URL setelah beberapa detik.
-        // --------------------------------------------------------
+        // Tidak hanya mengandalkan onPageFinished().
+        // ========================================================
 
         handler.postDelayed(
                 new Runnable() {
@@ -1584,7 +1670,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // INJECT URL
+    // INJECT TIKTOK URL
     // ============================================================
 
     private void injectTikTokUrl() {
@@ -1684,6 +1770,7 @@ public class MainActivity extends android.app.Activity {
                         + "buttons[i].click();"
 
                         + "return 'CLICKED';"
+
                         + "}"
                         + "}"
 
@@ -1761,7 +1848,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // FIND MP4 HD
+    // FIND MP4 HD + CAPTION
     // ============================================================
 
     private void findMp4HdButton() {
@@ -1795,9 +1882,9 @@ public class MainActivity extends android.app.Activity {
                         + "return 'NO_CARD';"
                         + "}"
 
-                        // ------------------------------------------------
+                        // =================================================
                         // CAPTION
-                        // ------------------------------------------------
+                        // =================================================
 
                         + "var captionEl="
                         + "card.querySelector("
@@ -1813,9 +1900,9 @@ public class MainActivity extends android.app.Activity {
                         + "captionEl.innerText.trim()"
                         + " : '';"
 
-                        // ------------------------------------------------
-                        // MP4 HD
-                        // ------------------------------------------------
+                        // =================================================
+                        // DOWNLOAD BUTTONS
+                        // =================================================
 
                         + "var links="
                         + "card.querySelectorAll("
@@ -1865,8 +1952,10 @@ public class MainActivity extends android.app.Activity {
                     String result =
                             value;
 
-                    // Android evaluateJavascript
-                    // mengembalikan string dengan quote.
+                    // ----------------------------------------------------
+                    // Remove quote dari hasil evaluateJavascript
+                    // ----------------------------------------------------
+
                     if (result.length() >= 2
                             && result.startsWith("\"")
                             && result.endsWith("\"")) {
@@ -1883,6 +1972,10 @@ public class MainActivity extends android.app.Activity {
                                     "\\\"",
                                     "\""
                             );
+
+                    // ----------------------------------------------------
+                    // BERHASIL KLIK HD
+                    // ----------------------------------------------------
 
                     if (result.contains(
                             "HD_CLICKED|"
@@ -1924,7 +2017,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // RETRY FIND MP4 HD
+    // RETRY MP4 HD
     // ============================================================
 
     private void retryFindMp4Hd() {
@@ -1951,7 +2044,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // HANDLE DOWNLOAD
+    // HANDLE WEB DOWNLOAD
     // ============================================================
 
     private void handleWebDownload(
@@ -2032,9 +2125,9 @@ public class MainActivity extends android.app.Activity {
                             .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             );
 
-            // ----------------------------------------------------
+            // ========================================================
             // DESTINATION
-            // ----------------------------------------------------
+            // ========================================================
 
             request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS
@@ -2043,9 +2136,9 @@ public class MainActivity extends android.app.Activity {
                     "video.mp4"
             );
 
-            // ----------------------------------------------------
+            // ========================================================
             // USER AGENT
-            // ----------------------------------------------------
+            // ========================================================
 
             if (userAgent != null
                     && !userAgent.isEmpty()) {
@@ -2056,9 +2149,9 @@ public class MainActivity extends android.app.Activity {
                 );
             }
 
-            // ----------------------------------------------------
+            // ========================================================
             // COOKIE
-            // ----------------------------------------------------
+            // ========================================================
 
             String cookies =
                     CookieManager
@@ -2076,32 +2169,36 @@ public class MainActivity extends android.app.Activity {
                 );
             }
 
-            // ----------------------------------------------------
+            // ========================================================
             // REFERER
-            // ----------------------------------------------------
+            // ========================================================
 
             request.addRequestHeader(
                     "Referer",
                     SAVE_TIKTOK_URL
             );
 
+            // ========================================================
+            // ENQUEUE
+            // ========================================================
+
             currentDownloadId =
                     downloadManager.enqueue(
                             request
                     );
 
-            // ----------------------------------------------------
-            // SIMPAN CAPTION
-            // ----------------------------------------------------
+            // ========================================================
+            // SAVE CAPTION
+            // ========================================================
 
             saveCaptionFile(
                     folderName,
                     currentCaption
             );
 
-            // ----------------------------------------------------
-            // CEK STATUS
-            // ----------------------------------------------------
+            // ========================================================
+            // CHECK STATUS
+            // ========================================================
 
             handler.postDelayed(
                     new Runnable() {
@@ -2177,9 +2274,9 @@ public class MainActivity extends android.app.Activity {
                                 )
                         );
 
-                // ------------------------------------------------
+                // ====================================================
                 // SUCCESS
-                // ------------------------------------------------
+                // ====================================================
 
                 if (status ==
                         DownloadManager.STATUS_SUCCESSFUL) {
@@ -2191,9 +2288,9 @@ public class MainActivity extends android.app.Activity {
                     return;
                 }
 
-                // ------------------------------------------------
+                // ====================================================
                 // FAILED
-                // ------------------------------------------------
+                // ====================================================
 
                 if (status ==
                         DownloadManager.STATUS_FAILED) {
@@ -2217,9 +2314,9 @@ public class MainActivity extends android.app.Activity {
             }
         }
 
-        // --------------------------------------------------------
-        // MASIH BERJALAN
-        // --------------------------------------------------------
+        // ========================================================
+        // MASIH DOWNLOAD
+        // ========================================================
 
         handler.postDelayed(
                 new Runnable() {
@@ -2303,6 +2400,10 @@ public class MainActivity extends android.app.Activity {
 
         currentIndex++;
 
+        // ========================================================
+        // SEMUA SELESAI
+        // ========================================================
+
         if (currentIndex >= urlQueue.size()) {
 
             processing = false;
@@ -2322,6 +2423,10 @@ public class MainActivity extends android.app.Activity {
             return;
         }
 
+        // ========================================================
+        // VIDEO BERIKUTNYA
+        // ========================================================
+
         currentTikTokUrl = "";
 
         currentCaption = "";
@@ -2334,15 +2439,11 @@ public class MainActivity extends android.app.Activity {
 
         currentDownloadId = -1;
 
-        // --------------------------------------------------------
-        // URL berikutnya menggunakan halaman SaveTikTok baru.
-        // --------------------------------------------------------
-
         startCurrentDownload();
     }
 
     // ============================================================
-    // ADD FINISHED ITEM
+    // FINISHED ITEM
     // ============================================================
 
     private void addFinishedItem(
@@ -2357,9 +2458,9 @@ public class MainActivity extends android.app.Activity {
         LinearLayout card =
                 createCard();
 
-        // --------------------------------------------------------
-        // NOMOR
-        // --------------------------------------------------------
+        // ========================================================
+        // NUMBER
+        // ========================================================
 
         TextView number =
                 new TextView(this);
@@ -2384,9 +2485,9 @@ public class MainActivity extends android.app.Activity {
                 number
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // STATUS
-        // --------------------------------------------------------
+        // ========================================================
 
         TextView status =
                 new TextView(this);
@@ -2418,9 +2519,9 @@ public class MainActivity extends android.app.Activity {
                 status
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // CAPTION
-        // --------------------------------------------------------
+        // ========================================================
 
         TextView captionText =
                 new TextView(this);
@@ -2459,9 +2560,9 @@ public class MainActivity extends android.app.Activity {
                 captionText
         );
 
-        // --------------------------------------------------------
+        // ========================================================
         // FOLDER
-        // --------------------------------------------------------
+        // ========================================================
 
         TextView folder =
                 new TextView(this);
@@ -2499,7 +2600,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // SAVE CAPTION FILE
+    // SAVE CAPTION
     // ============================================================
 
     private void saveCaptionFile(
@@ -2513,9 +2614,9 @@ public class MainActivity extends android.app.Activity {
 
         try {
 
-            // ----------------------------------------------------
+            // ====================================================
             // ANDROID 10+
-            // ----------------------------------------------------
+            // ====================================================
 
             if (Build.VERSION.SDK_INT >=
                     Build.VERSION_CODES.Q) {
@@ -2572,15 +2673,14 @@ public class MainActivity extends android.app.Activity {
 
             } else {
 
-                // ------------------------------------------------
+                // =================================================
                 // ANDROID LAMA
-                // ------------------------------------------------
+                // =================================================
 
                 File downloads =
                         Environment
                                 .getExternalStoragePublicDirectory(
-                                        Environment
-                                                .DIRECTORY_DOWNLOADS
+                                        Environment.DIRECTORY_DOWNLOADS
                                 );
 
                 File folder =
@@ -2719,13 +2819,15 @@ public class MainActivity extends android.app.Activity {
 
         mp4HdClicked = false;
 
+        waitingForDownload = false;
+
         webView.loadUrl(
                 SAVE_TIKTOK_URL
         );
     }
 
     // ============================================================
-    // BACK
+    // ON BACK PRESSED
     // ============================================================
 
     @Override
@@ -2742,7 +2844,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // DESTROY
+    // ON DESTROY
     // ============================================================
 
     @Override
