@@ -7,6 +7,7 @@ import android.app.DownloadManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -61,7 +62,6 @@ public class MainActivity extends Activity {
     private static final int MAX_MP4_HD_CHECKS = 30;
 
     private EditText input;
-
     private LinearLayout queue;
     private LinearLayout finishedList;
 
@@ -117,15 +117,12 @@ public class MainActivity extends Activity {
             clipboardAddedUrls =
             new LinkedHashSet<>();
 
-
     // =========================================================
     // ACTIVITY
     // =========================================================
 
     @Override
-    protected void onCreate(
-            Bundle savedInstanceState
-    ) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         prepareWindow();
@@ -139,8 +136,117 @@ public class MainActivity extends Activity {
         buildUi();
 
         requestStorageIfNeeded();
+
+        // Menerima link dari Share Sheet ketika
+        // aplikasi baru dibuka.
+        handleShareIntent(getIntent());
     }
 
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+
+        setIntent(intent);
+
+        // Menerima link Share ketika Activity
+        // sudah sedang terbuka.
+        handleShareIntent(intent);
+    }
+
+    private void handleShareIntent(Intent intent) {
+
+        if (intent == null) {
+            return;
+        }
+
+        if (!Intent.ACTION_SEND.equals(
+                intent.getAction()
+        )) {
+            return;
+        }
+
+        String text =
+                intent.getStringExtra(
+                        Intent.EXTRA_TEXT
+                );
+
+        String tikTokUrl =
+                extractTikTokUrl(text);
+
+        if (tikTokUrl == null) {
+
+            Toast.makeText(
+                    this,
+                    "Link TikTok tidak ditemukan.",
+                    Toast.LENGTH_SHORT
+            ).show();
+
+            return;
+        }
+
+        addSharedUrl(tikTokUrl);
+    }
+
+    private void addSharedUrl(String url) {
+
+        if (url == null ||
+                url.trim().isEmpty()) {
+            return;
+        }
+
+        url = url.trim();
+
+        for (String existing : urls) {
+
+            if (existing.equalsIgnoreCase(url)) {
+
+                Toast.makeText(
+                        this,
+                        "Link sudah ada di antrean.",
+                        Toast.LENGTH_SHORT
+                ).show();
+
+                showPage(1);
+                return;
+            }
+        }
+
+        int newIndex = urls.size();
+
+        urls.add(url);
+
+        clipboardAddedUrls.add(url);
+
+        appendUrlToInput(url);
+
+        addQueueItem(
+                newIndex,
+                url
+        );
+
+        updateProgress();
+
+        webStatus.setText(
+                "Share: link TikTok masuk antrean"
+        );
+
+        showPage(1);
+
+        Toast.makeText(
+                this,
+                "Link TikTok masuk antrean.",
+                Toast.LENGTH_SHORT
+        ).show();
+
+        /*
+         * Jika tidak ada proses yang sedang berjalan,
+         * langsung mulai link yang baru dibagikan.
+         */
+        if (!processing) {
+
+            startSingle(newIndex);
+        }
+    }
 
     private void prepareWindow() {
 
@@ -164,23 +270,23 @@ public class MainActivity extends Activity {
         }
     }
 
-
     @Override
     protected void onResume() {
 
         super.onResume();
 
         /*
-         * Jadikan clipboard saat ini sebagai baseline.
-         * Jadi link lama sebelum aplikasi dibuka
-         * tidak otomatis dimasukkan.
+         * Clipboard otomatis hanya ketika aplikasi
+         * sedang berada di foreground.
+         *
+         * Android modern membatasi aplikasi background
+         * membaca clipboard aplikasi lain.
          */
         lastClipboardText =
                 readClipboardText();
 
         startClipboardListener();
     }
-
 
     @Override
     protected void onPause() {
@@ -190,7 +296,6 @@ public class MainActivity extends Activity {
         super.onPause();
     }
 
-
     @Override
     protected void onDestroy() {
 
@@ -199,6 +304,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacksAndMessages(null);
 
         if (webView != null) {
+
             webView.stopLoading();
             webView.destroy();
         }
@@ -206,68 +312,60 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-
     // =========================================================
-    // CLIPBOARD LISTENER
+    // CLIPBOARD
     // =========================================================
 
     private void startClipboardListener() {
 
-        if (clipboardManager == null) {
+        if (clipboardManager == null ||
+                clipboardListenerActive) {
             return;
         }
 
-        if (clipboardListenerActive) {
-            return;
-        }
+        clipboardListener = () -> {
 
-        clipboardListener =
-                () -> {
+            if (isFinishing()) {
+                return;
+            }
 
-                    if (isFinishing()) {
-                        return;
-                    }
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.JELLY_BEAN_MR1) {
 
-                    if (Build.VERSION.SDK_INT >=
-                            Build.VERSION_CODES.JELLY_BEAN_MR1) {
+                if (isDestroyed()) {
+                    return;
+                }
+            }
 
-                        if (isDestroyed()) {
-                            return;
-                        }
-                    }
+            String text =
+                    readClipboardText();
 
-                    String text =
-                            readClipboardText();
+            if (text == null) {
+                text = "";
+            }
 
-                    if (text == null) {
-                        text = "";
-                    }
+            if (text.equals(
+                    lastClipboardText
+            )) {
+                return;
+            }
 
-                    if (text.equals(
-                            lastClipboardText
-                    )) {
-                        return;
-                    }
+            lastClipboardText = text;
 
-                    lastClipboardText = text;
+            String tikTokUrl =
+                    extractTikTokUrl(text);
 
-                    String tikTokUrl =
-                            extractTikTokUrl(text);
+            if (tikTokUrl == null) {
+                return;
+            }
 
-                    if (tikTokUrl == null) {
-                        return;
-                    }
+            String finalUrl =
+                    tikTokUrl;
 
-                    String finalUrl =
-                            tikTokUrl;
-
-                    runOnUiThread(
-                            () ->
-                                    addClipboardUrl(
-                                            finalUrl
-                                    )
-                    );
-                };
+            runOnUiThread(
+                    () -> addClipboardUrl(finalUrl)
+            );
+        };
 
         clipboardManager
                 .addPrimaryClipChangedListener(
@@ -277,14 +375,10 @@ public class MainActivity extends Activity {
         clipboardListenerActive = true;
     }
 
-
     private void stopClipboardListener() {
 
-        if (clipboardManager == null) {
-            return;
-        }
-
-        if (!clipboardListenerActive) {
+        if (clipboardManager == null ||
+                !clipboardListenerActive) {
             return;
         }
 
@@ -297,20 +391,15 @@ public class MainActivity extends Activity {
         }
 
         clipboardListener = null;
-
         clipboardListenerActive = false;
     }
-
 
     private String readClipboardText() {
 
         try {
 
-            if (clipboardManager == null) {
-                return "";
-            }
-
-            if (!clipboardManager.hasPrimaryClip()) {
+            if (clipboardManager == null ||
+                    !clipboardManager.hasPrimaryClip()) {
                 return "";
             }
 
@@ -319,13 +408,11 @@ public class MainActivity extends Activity {
 
             if (clipData == null ||
                     clipData.getItemCount() == 0) {
-
                 return "";
             }
 
             CharSequence text =
-                    clipData
-                            .getItemAt(0)
+                    clipData.getItemAt(0)
                             .coerceToText(this);
 
             return text == null
@@ -338,10 +425,7 @@ public class MainActivity extends Activity {
         }
     }
 
-
-    private String extractTikTokUrl(
-            String text
-    ) {
+    private String extractTikTokUrl(String text) {
 
         if (text == null) {
             return null;
@@ -394,14 +478,10 @@ public class MainActivity extends Activity {
         return url;
     }
 
-
-    private void addClipboardUrl(
-            String url
-    ) {
+    private void addClipboardUrl(String url) {
 
         if (url == null ||
                 url.trim().isEmpty()) {
-
             return;
         }
 
@@ -425,19 +505,20 @@ public class MainActivity extends Activity {
                 clipboardAddedUrls) {
 
             if (existing.equalsIgnoreCase(url)) {
-
                 return;
             }
         }
 
         clipboardAddedUrls.add(url);
 
+        int index = urls.size();
+
         urls.add(url);
 
         appendUrlToInput(url);
 
         addQueueItem(
-                urls.size() - 1,
+                index,
                 url
         );
 
@@ -454,12 +535,17 @@ public class MainActivity extends Activity {
         ).show();
 
         showPage(1);
+
+        /*
+         * Kalau tidak sedang download,
+         * langsung proses link clipboard.
+         */
+        if (!processing) {
+            startSingle(index);
+        }
     }
 
-
-    private void appendUrlToInput(
-            String url
-    ) {
+    private void appendUrlToInput(String url) {
 
         if (input == null) {
             return;
@@ -477,9 +563,7 @@ public class MainActivity extends Activity {
         } else {
 
             input.setText(
-                    current
-                            + "\n"
-                            + url
+                    current + "\n" + url
             );
         }
 
@@ -488,9 +572,8 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // MAIN UI
+    // UI
     // =========================================================
 
     private void buildUi() {
@@ -499,23 +582,9 @@ public class MainActivity extends Activity {
                 new FrameLayout(this);
 
         root.setBackgroundColor(
-                Color.rgb(
-                        246,
-                        247,
-                        249
-                )
+                Color.rgb(246, 247, 249)
         );
 
-
-        /*
-         * FIX:
-         *
-         * Jangan gunakan:
-         *
-         * WindowInsets.Type.InsetsTypeMask
-         *
-         * karena class tersebut tidak ada.
-         */
         if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.R) {
 
@@ -537,7 +606,6 @@ public class MainActivity extends Activity {
                         return insets;
                     }
             );
-
         } else {
 
             root.setPadding(
@@ -548,23 +616,16 @@ public class MainActivity extends Activity {
             );
         }
 
-
         pageContainer =
                 new FrameLayout(this);
 
-
-        FrameLayout.LayoutParams pageParams =
+        root.addView(
+                pageContainer,
                 new FrameLayout.LayoutParams(
                         -1,
                         -1
-                );
-
-
-        root.addView(
-                pageContainer,
-                pageParams
+                )
         );
-
 
         downloadPage =
                 buildDownloadPage();
@@ -574,7 +635,6 @@ public class MainActivity extends Activity {
 
         finishedPage =
                 buildFinishedPage();
-
 
         pageContainer.addView(
                 downloadPage,
@@ -590,11 +650,6 @@ public class MainActivity extends Activity {
                 finishedPage,
                 matchParams()
         );
-
-
-        // =====================================================
-        // BOTTOM NAVIGATION
-        // =====================================================
 
         LinearLayout bottom =
                 new LinearLayout(this);
@@ -618,25 +673,14 @@ public class MainActivity extends Activity {
                 Color.WHITE
         );
 
-
         navDownload =
-                navItem(
-                        "⌂",
-                        "Download"
-                );
+                navItem("⌂", "Download");
 
         navProgress =
-                navItem(
-                        "↓",
-                        "Progress"
-                );
+                navItem("↓", "Progress");
 
         navFinished =
-                navItem(
-                        "✓",
-                        "Finished"
-                );
-
+                navItem("✓", "Finished");
 
         bottom.addView(
                 navDownload,
@@ -665,7 +709,6 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         FrameLayout.LayoutParams bottomParams =
                 new FrameLayout.LayoutParams(
                         -1,
@@ -673,12 +716,10 @@ public class MainActivity extends Activity {
                         Gravity.BOTTOM
                 );
 
-
         root.addView(
                 bottom,
                 bottomParams
         );
-
 
         navDownload.setOnClickListener(
                 v -> showPage(0)
@@ -692,13 +733,7 @@ public class MainActivity extends Activity {
                 v -> showPage(2)
         );
 
-
         setContentView(root);
-
-
-        // =====================================================
-        // HIDDEN WEBVIEW
-        // =====================================================
 
         webView =
                 new WebView(this);
@@ -707,30 +742,18 @@ public class MainActivity extends Activity {
                 View.GONE
         );
 
-
-        FrameLayout.LayoutParams webParams =
+        root.addView(
+                webView,
                 new FrameLayout.LayoutParams(
                         1,
                         1
-                );
-
-
-        root.addView(
-                webView,
-                webParams
+                )
         );
-
 
         configureWebView();
 
-
         showPage(0);
     }
-
-
-    // =========================================================
-    // DOWNLOAD PAGE
-    // =========================================================
 
     private LinearLayout buildDownloadPage() {
 
@@ -742,19 +765,13 @@ public class MainActivity extends Activity {
         );
 
         outer.setBackgroundColor(
-                Color.rgb(
-                        246,
-                        247,
-                        249
-                )
+                Color.rgb(246, 247, 249)
         );
-
 
         ScrollView scroll =
                 new ScrollView(this);
 
         scroll.setFillViewport(true);
-
 
         LinearLayout page =
                 new LinearLayout(this);
@@ -770,11 +787,6 @@ public class MainActivity extends Activity {
                 dp(25)
         );
 
-
-        // =====================================================
-        // HEADER
-        // =====================================================
-
         TextView title =
                 text(
                         "TikTok Download Manager",
@@ -786,17 +798,10 @@ public class MainActivity extends Activity {
                 Typeface.BOLD
         );
 
-
         page.addView(
                 title,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        5
-                )
+                marginParams(0, 0, 0, 5)
         );
-
 
         TextView subtitle =
                 text(
@@ -805,41 +810,21 @@ public class MainActivity extends Activity {
                 );
 
         subtitle.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
-
 
         page.addView(
                 subtitle,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        20
-                )
+                marginParams(0, 0, 0, 20)
         );
-
-
-        // =====================================================
-        // INPUT
-        // =====================================================
 
         LinearLayout inputCard =
                 roundedBox(
                         Color.WHITE,
-                        Color.rgb(
-                                225,
-                                226,
-                                230
-                        ),
+                        Color.rgb(225, 226, 230),
                         16,
                         1
                 );
-
 
         inputCard.setPadding(
                 dp(14),
@@ -848,58 +833,30 @@ public class MainActivity extends Activity {
                 dp(4)
         );
 
-
         input =
                 new EditText(this);
-
 
         input.setHint(
                 "Tempel link TikTok di sini"
         );
 
-
-        input.setTextSize(
-                15
-        );
-
+        input.setTextSize(15);
 
         input.setTextColor(
-                Color.rgb(
-                        17,
-                        24,
-                        39
-                )
+                Color.rgb(17, 24, 39)
         );
-
 
         input.setHintTextColor(
-                Color.rgb(
-                        156,
-                        163,
-                        175
-                )
+                Color.rgb(156, 163, 175)
         );
-
 
         input.setGravity(
                 Gravity.TOP
         );
 
-
-        input.setSingleLine(
-                false
-        );
-
-
-        input.setMinLines(
-                3
-        );
-
-
-        input.setMaxLines(
-                6
-        );
-
+        input.setSingleLine(false);
+        input.setMinLines(3);
+        input.setMaxLines(6);
 
         input.setPadding(
                 dp(2),
@@ -908,11 +865,9 @@ public class MainActivity extends Activity {
                 dp(10)
         );
 
-
         input.setBackgroundColor(
                 Color.TRANSPARENT
         );
-
 
         inputCard.addView(
                 input,
@@ -922,91 +877,50 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         page.addView(
                 inputCard,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        12
-                )
+                marginParams(0, 0, 0, 12)
         );
-
-
-        // =====================================================
-        // ADD BUTTON
-        // =====================================================
 
         Button addButton =
                 primaryButton(
                         "＋  Tambahkan ke Antrean"
                 );
 
-
         page.addView(
                 addButton,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        10
-                )
+                marginParams(0, 0, 0, 10)
         );
-
 
         addButton.setOnClickListener(
                 v -> loadQueue()
         );
-
-
-        // =====================================================
-        // CLEAR
-        // =====================================================
 
         Button clearButton =
                 secondaryButton(
                         "Bersihkan"
                 );
 
-
         page.addView(
                 clearButton,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        22
-                )
+                marginParams(0, 0, 0, 22)
         );
-
 
         clearButton.setOnClickListener(
                 v -> clearQueue()
         );
 
-
-        // =====================================================
-        // CARA KERJA
-        // =====================================================
-
         LinearLayout info =
                 roundedBox(
                         Color.WHITE,
-                        Color.rgb(
-                                230,
-                                231,
-                                235
-                        ),
+                        Color.rgb(230, 231, 235),
                         16,
                         1
                 );
 
-
         info.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         info.setPadding(
                 dp(16),
@@ -1015,19 +929,13 @@ public class MainActivity extends Activity {
                 dp(14)
         );
 
-
         TextView infoTitle =
-                text(
-                        "Cara kerja",
-                        17
-                );
-
+                text("Cara kerja", 17);
 
         infoTitle.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
-
 
         TextView infoText =
                 text(
@@ -1038,68 +946,33 @@ public class MainActivity extends Activity {
                         13
                 );
 
-
         infoText.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
 
-
-        info.addView(
-                infoTitle
-        );
-
+        info.addView(infoTitle);
 
         info.addView(
                 infoText,
-                marginParams(
-                        0,
-                        6,
-                        0,
-                        0
-                )
+                marginParams(0, 6, 0, 0)
         );
-
 
         page.addView(
                 info,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        20
-                )
+                marginParams(0, 0, 0, 20)
         );
-
-
-        // =====================================================
-        // CLIPBOARD CARD
-        // =====================================================
 
         LinearLayout clipboardCard =
                 roundedBox(
-                        Color.rgb(
-                                239,
-                                246,
-                                255
-                        ),
-                        Color.rgb(
-                                191,
-                                219,
-                                254
-                        ),
+                        Color.rgb(239, 246, 255),
+                        Color.rgb(191, 219, 254),
                         16,
                         1
                 );
 
-
         clipboardCard.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         clipboardCard.setPadding(
                 dp(16),
@@ -1108,106 +981,67 @@ public class MainActivity extends Activity {
                 dp(14)
         );
 
-
         TextView clipboardTitle =
                 text(
                         "Clipboard otomatis aktif",
                         15
                 );
 
-
         clipboardTitle.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         TextView clipboardText =
                 text(
                         "Saat aplikasi sedang dibuka, copy link TikTok "
-                                + "akan otomatis masuk ke antrean.",
+                                + "akan otomatis masuk ke antrean.\n\n"
+                                + "Untuk menerima link tanpa berpindah aplikasi, "
+                                + "gunakan tombol Bagikan → TikTok Download Manager.",
                         13
                 );
 
-
         clipboardText.setTextColor(
-                Color.rgb(
-                        75,
-                        85,
-                        99
-                )
+                Color.rgb(75, 85, 99)
         );
-
 
         clipboardCard.addView(
                 clipboardTitle
         );
 
-
         clipboardCard.addView(
                 clipboardText,
-                marginParams(
-                        0,
-                        5,
-                        0,
-                        0
-                )
+                marginParams(0, 5, 0, 0)
         );
-
 
         page.addView(
                 clipboardCard,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        20
-                )
+                marginParams(0, 0, 0, 20)
         );
 
-
-        // =====================================================
-        // SUPPORTED
-        // =====================================================
-
         TextView supported =
-                text(
-                        "Supported",
-                        18
-                );
-
+                text("Supported", 18);
 
         supported.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         page.addView(
                 supported,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        10
-                )
+                marginParams(0, 0, 0, 10)
         );
 
-
         String[][] platforms = {
-
                 {"●", "WhatsApp"},
                 {"V", "Vimeo"},
                 {"P", "Pinterest"},
                 {"F", "Facebook"},
-
                 {"▶", "YouTube"},
                 {"◎", "Instagram"},
                 {"D", "Dailymotion"},
                 {"♪", "TikTok"}
-
         };
-
 
         LinearLayout grid =
                 new LinearLayout(this);
@@ -1216,12 +1050,9 @@ public class MainActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
-
-        for (
-                int rowIndex = 0;
-                rowIndex < 2;
-                rowIndex++
-        ) {
+        for (int rowIndex = 0;
+             rowIndex < 2;
+             rowIndex++) {
 
             LinearLayout row =
                     new LinearLayout(this);
@@ -1230,16 +1061,12 @@ public class MainActivity extends Activity {
                     Gravity.CENTER
             );
 
-
-            for (
-                    int col = 0;
-                    col < 4;
-                    col++
-            ) {
+            for (int col = 0;
+                 col < 4;
+                 col++) {
 
                 int index =
                         rowIndex * 4 + col;
-
 
                 LinearLayout item =
                         new LinearLayout(this);
@@ -1248,11 +1075,9 @@ public class MainActivity extends Activity {
                         LinearLayout.VERTICAL
                 );
 
-
                 item.setGravity(
                         Gravity.CENTER
                 );
-
 
                 TextView icon =
                         text(
@@ -1260,16 +1085,13 @@ public class MainActivity extends Activity {
                                 20
                         );
 
-
                 icon.setGravity(
                         Gravity.CENTER
                 );
 
-
                 icon.setTextColor(
                         Color.WHITE
                 );
-
 
                 icon.setBackground(
                         round(
@@ -1282,7 +1104,6 @@ public class MainActivity extends Activity {
                         )
                 );
 
-
                 item.addView(
                         icon,
                         new LinearLayout.LayoutParams(
@@ -1291,18 +1112,15 @@ public class MainActivity extends Activity {
                         )
                 );
 
-
                 TextView label =
                         text(
                                 platforms[index][1],
                                 11
                         );
 
-
                 label.setGravity(
                         Gravity.CENTER
                 );
-
 
                 label.setTextColor(
                         Color.rgb(
@@ -1312,7 +1130,6 @@ public class MainActivity extends Activity {
                         )
                 );
 
-
                 item.addView(
                         label,
                         new LinearLayout.LayoutParams(
@@ -1320,7 +1137,6 @@ public class MainActivity extends Activity {
                                 dp(32)
                         )
                 );
-
 
                 row.addView(
                         item,
@@ -1332,7 +1148,6 @@ public class MainActivity extends Activity {
                 );
             }
 
-
             grid.addView(
                     row,
                     new LinearLayout.LayoutParams(
@@ -1342,17 +1157,10 @@ public class MainActivity extends Activity {
             );
         }
 
-
         page.addView(
                 grid,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        20
-                )
+                marginParams(0, 0, 0, 20)
         );
-
 
         TextView footer =
                 text(
@@ -1360,20 +1168,13 @@ public class MainActivity extends Activity {
                         12
                 );
 
-
         footer.setGravity(
                 Gravity.CENTER
         );
 
-
         footer.setTextColor(
-                Color.rgb(
-                        156,
-                        163,
-                        175
-                )
+                Color.rgb(156, 163, 175)
         );
-
 
         page.addView(
                 footer,
@@ -1383,7 +1184,6 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         scroll.addView(
                 page,
                 new ScrollView.LayoutParams(
@@ -1391,7 +1191,6 @@ public class MainActivity extends Activity {
                         -2
                 )
         );
-
 
         outer.addView(
                 scroll,
@@ -1402,14 +1201,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return outer;
     }
-
-
-    // =========================================================
-    // PROGRESS PAGE
-    // =========================================================
 
     private LinearLayout buildProgressPage() {
 
@@ -1420,7 +1213,6 @@ public class MainActivity extends Activity {
                 LinearLayout.VERTICAL
         );
 
-
         page.setPadding(
                 dp(20),
                 dp(20),
@@ -1428,30 +1220,18 @@ public class MainActivity extends Activity {
                 dp(10)
         );
 
-
         TextView title =
-                text(
-                        "Progress",
-                        25
-                );
-
+                text("Progress", 25);
 
         title.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         page.addView(
                 title,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        4
-                )
+                marginParams(0, 0, 0, 4)
         );
-
 
         TextView subtitle =
                 text(
@@ -1459,39 +1239,22 @@ public class MainActivity extends Activity {
                         13
                 );
 
-
         subtitle.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
-
 
         page.addView(
                 subtitle,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        14
-                )
+                marginParams(0, 0, 0, 14)
         );
-
 
         LinearLayout summary =
                 roundedBox(
                         Color.WHITE,
-                        Color.rgb(
-                                230,
-                                231,
-                                235
-                        ),
+                        Color.rgb(230, 231, 235),
                         15,
                         1
                 );
-
 
         summary.setPadding(
                 dp(15),
@@ -1500,19 +1263,13 @@ public class MainActivity extends Activity {
                 dp(12)
         );
 
-
         progressText =
-                text(
-                        "0 / 0",
-                        14
-                );
-
+                text("0 / 0", 14);
 
         progressText.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
-
 
         summary.addView(
                 progressText,
@@ -1523,12 +1280,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         Button start =
-                primaryButton(
-                        "Mulai Semua"
-                );
-
+                primaryButton("Mulai Semua");
 
         summary.addView(
                 start,
@@ -1538,35 +1291,24 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         start.setOnClickListener(
                 v -> startAll()
         );
 
-
         page.addView(
                 summary,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        12
-                )
+                marginParams(0, 0, 0, 12)
         );
-
 
         ScrollView scroll =
                 new ScrollView(this);
 
-
         queue =
                 new LinearLayout(this);
-
 
         queue.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         scroll.addView(
                 queue,
@@ -1576,7 +1318,6 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         page.addView(
                 scroll,
                 new LinearLayout.LayoutParams(
@@ -1586,18 +1327,15 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         webStatus =
                 text(
                         "WebView: siap",
                         11
                 );
 
-
         webStatus.setVisibility(
                 View.GONE
         );
-
 
         page.addView(
                 webStatus,
@@ -1607,25 +1345,17 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return page;
     }
-
-
-    // =========================================================
-    // FINISHED PAGE
-    // =========================================================
 
     private LinearLayout buildFinishedPage() {
 
         LinearLayout page =
                 new LinearLayout(this);
 
-
         page.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         page.setPadding(
                 dp(20),
@@ -1634,30 +1364,18 @@ public class MainActivity extends Activity {
                 dp(10)
         );
 
-
         TextView title =
-                text(
-                        "Finished",
-                        25
-                );
-
+                text("Finished", 25);
 
         title.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         page.addView(
                 title,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        4
-                )
+                marginParams(0, 0, 0, 4)
         );
-
 
         TextView subtitle =
                 text(
@@ -1665,39 +1383,24 @@ public class MainActivity extends Activity {
                         13
                 );
 
-
         subtitle.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
-
 
         page.addView(
                 subtitle,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        14
-                )
+                marginParams(0, 0, 0, 14)
         );
-
 
         ScrollView scroll =
                 new ScrollView(this);
 
-
         finishedList =
                 new LinearLayout(this);
-
 
         finishedList.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         scroll.addView(
                 finishedList,
@@ -1706,7 +1409,6 @@ public class MainActivity extends Activity {
                         -2
                 )
         );
-
 
         page.addView(
                 scroll,
@@ -1717,13 +1419,11 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return page;
     }
 
-
     // =========================================================
-    // FINISHED CARD
+    // FINISHED
     // =========================================================
 
     private void addFinishedItem(
@@ -1735,15 +1435,12 @@ public class MainActivity extends Activity {
             return;
         }
 
-
         LinearLayout card =
                 new LinearLayout(this);
-
 
         card.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         card.setPadding(
                 dp(14),
@@ -1751,7 +1448,6 @@ public class MainActivity extends Activity {
                 dp(14),
                 dp(14)
         );
-
 
         card.setBackground(
                 round(
@@ -1766,14 +1462,11 @@ public class MainActivity extends Activity {
                 )
         );
 
-
-        LinearLayout.LayoutParams
-                cardParams =
+        LinearLayout.LayoutParams cardParams =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
-
 
         cardParams.setMargins(
                 0,
@@ -1782,12 +1475,10 @@ public class MainActivity extends Activity {
                 dp(14)
         );
 
-
         finishedList.addView(
                 card,
                 cardParams
         );
-
 
         TextView header =
                 text(
@@ -1800,27 +1491,16 @@ public class MainActivity extends Activity {
                         16
                 );
 
-
         header.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         card.addView(
                 header,
-                marginParams(
-                        0,
-                        0,
-                        0,
-                        8
-                )
+                marginParams(0, 0, 0, 8)
         );
 
-
-        /*
-         * Preview video dari DownloadManager.
-         */
         try {
 
             DownloadManager manager =
@@ -1829,11 +1509,8 @@ public class MainActivity extends Activity {
                                     Context.DOWNLOAD_SERVICE
                             );
 
-
-            if (
-                    manager != null &&
-                            currentDownloadId != -1L
-            ) {
+            if (manager != null &&
+                    currentDownloadId != -1L) {
 
                 Uri videoUri =
                         manager
@@ -1841,38 +1518,29 @@ public class MainActivity extends Activity {
                                         currentDownloadId
                                 );
 
-
                 if (videoUri != null) {
 
                     VideoView video =
                             new VideoView(this);
 
-
                     video.setBackgroundColor(
                             Color.BLACK
                     );
 
-
                     MediaController controller =
-                            new MediaController(
-                                    this
-                            );
-
+                            new MediaController(this);
 
                     controller.setAnchorView(
                             video
                     );
 
-
                     video.setMediaController(
                             controller
                     );
 
-
                     video.setVideoURI(
                             videoUri
                     );
-
 
                     card.addView(
                             video,
@@ -1882,17 +1550,11 @@ public class MainActivity extends Activity {
                             )
                     );
 
-
                     video.setOnPreparedListener(
                             mp -> {
 
-                                mp.setLooping(
-                                        false
-                                );
+                                mp.setLooping(false);
 
-                                /*
-                                 * Tidak autoplay.
-                                 */
                                 video.seekTo(1);
                             }
                     );
@@ -1901,7 +1563,6 @@ public class MainActivity extends Activity {
 
         } catch (Exception ignored) {
         }
-
 
         TextView cap =
                 text(
@@ -1912,31 +1573,16 @@ public class MainActivity extends Activity {
                         13
                 );
 
-
         cap.setTextColor(
-                Color.rgb(
-                        55,
-                        65,
-                        81
-                )
+                Color.rgb(55, 65, 81)
         );
 
-
-        cap.setMaxLines(
-                4
-        );
-
+        cap.setMaxLines(4);
 
         card.addView(
                 cap,
-                marginParams(
-                        0,
-                        10,
-                        0,
-                        5
-                )
+                marginParams(0, 10, 0, 5)
         );
-
 
         TextView files =
                 text(
@@ -1944,21 +1590,12 @@ public class MainActivity extends Activity {
                         12
                 );
 
-
         files.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
 
-
-        card.addView(
-                files
-        );
+        card.addView(files);
     }
-
 
     // =========================================================
     // WEBVIEW
@@ -1970,41 +1607,13 @@ public class MainActivity extends Activity {
         WebSettings settings =
                 webView.getSettings();
 
-
-        settings.setJavaScriptEnabled(
-                true
-        );
-
-
-        settings.setDomStorageEnabled(
-                true
-        );
-
-
-        settings.setDatabaseEnabled(
-                true
-        );
-
-
-        settings.setAllowFileAccess(
-                false
-        );
-
-
-        settings.setAllowContentAccess(
-                true
-        );
-
-
-        settings.setSupportMultipleWindows(
-                false
-        );
-
-
-        settings.setJavaScriptCanOpenWindowsAutomatically(
-                false
-        );
-
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(true);
+        settings.setSupportMultipleWindows(false);
+        settings.setJavaScriptCanOpenWindowsAutomatically(false);
 
         settings.setUserAgentString(
                 "Mozilla/5.0 (Linux; Android 12) "
@@ -2013,24 +1622,18 @@ public class MainActivity extends Activity {
                         + "Chrome/140.0 Mobile Safari/537.36"
         );
 
-
-        CookieManager
-                .getInstance()
+        CookieManager.getInstance()
                 .setAcceptCookie(true);
 
-
-        CookieManager
-                .getInstance()
+        CookieManager.getInstance()
                 .setAcceptThirdPartyCookies(
                         webView,
                         true
                 );
 
-
         webView.setWebChromeClient(
                 new WebChromeClient()
         );
-
 
         webView.setWebViewClient(
                 new WebViewClient() {
@@ -2040,10 +1643,8 @@ public class MainActivity extends Activity {
                             WebView view,
                             WebResourceRequest request
                     ) {
-
                         return false;
                     }
-
 
                     @Override
                     public void onPageFinished(
@@ -2056,11 +1657,8 @@ public class MainActivity extends Activity {
                                 url
                         );
 
-
-                        if (
-                                !processing ||
-                                        currentIndex < 0
-                        ) {
+                        if (!processing ||
+                                currentIndex < 0) {
 
                             webStatus.setText(
                                     "WebView: halaman siap"
@@ -2069,10 +1667,7 @@ public class MainActivity extends Activity {
                             return;
                         }
 
-
-                        if (
-                                !isSaveTikTokPage(url)
-                        ) {
+                        if (!isSaveTikTokPage(url)) {
 
                             webStatus.setText(
                                     "WebView: membuka SaveTikTok..."
@@ -2081,13 +1676,11 @@ public class MainActivity extends Activity {
                             return;
                         }
 
-
                         if (!submitClicked) {
 
                             webStatus.setText(
                                     "WebView: mencari kolom URL..."
                             );
-
 
                             handler.postDelayed(
                                     () ->
@@ -2108,7 +1701,6 @@ public class MainActivity extends Activity {
                         }
                     }
 
-
                     @Override
                     public void onReceivedError(
                             WebView view,
@@ -2116,9 +1708,7 @@ public class MainActivity extends Activity {
                             WebResourceError error
                     ) {
 
-                        if (
-                                request.isForMainFrame()
-                        ) {
+                        if (request.isForMainFrame()) {
 
                             webStatus.setText(
                                     "WebView: gagal memuat halaman"
@@ -2127,7 +1717,6 @@ public class MainActivity extends Activity {
                     }
                 }
         );
-
 
         webView.setDownloadListener(
                 (
@@ -2147,17 +1736,12 @@ public class MainActivity extends Activity {
         );
     }
 
-
-    private boolean isSaveTikTokPage(
-            String url
-    ) {
+    private boolean isSaveTikTokPage(String url) {
 
         try {
 
             String host =
-                    Uri.parse(url)
-                            .getHost();
-
+                    Uri.parse(url).getHost();
 
             return host != null &&
                     host.toLowerCase(
@@ -2172,7 +1756,6 @@ public class MainActivity extends Activity {
         }
     }
 
-
     // =========================================================
     // LOAD QUEUE
     // =========================================================
@@ -2182,34 +1765,24 @@ public class MainActivity extends Activity {
         LinkedHashSet<String> unique =
                 new LinkedHashSet<>();
 
-
         String raw =
                 input.getText()
                         .toString();
 
-
-        for (
-                String line :
-                raw.split("\\r?\\n")
-        ) {
+        for (String line :
+                raw.split("\\r?\\n")) {
 
             String url =
                     line.trim();
 
-
             if (
-                    url.startsWith(
-                            "http://"
-                    ) ||
-                            url.startsWith(
-                                    "https://"
-                            )
+                    url.startsWith("http://") ||
+                            url.startsWith("https://")
             ) {
 
                 unique.add(url);
             }
         }
-
 
         if (unique.isEmpty()) {
 
@@ -2222,11 +1795,8 @@ public class MainActivity extends Activity {
             return;
         }
 
-
         urls.clear();
-
         urls.addAll(unique);
-
 
         clipboardAddedUrls.clear();
 
@@ -2234,35 +1804,22 @@ public class MainActivity extends Activity {
             clipboardAddedUrls.add(url);
         }
 
-
         currentIndex = -1;
-
         processing = false;
-
         submitClicked = false;
-
         downloadStarted = false;
-
         currentCaption = "";
-
         currentDownloadId = -1L;
 
         handledDownloadUrls.clear();
 
-
-        handler.removeCallbacksAndMessages(
-                null
-        );
-
+        handler.removeCallbacksAndMessages(null);
 
         queue.removeAllViews();
 
-
-        for (
-                int i = 0;
-                i < urls.size();
-                i++
-        ) {
+        for (int i = 0;
+             i < urls.size();
+             i++) {
 
             addQueueItem(
                     i,
@@ -2270,14 +1827,11 @@ public class MainActivity extends Activity {
             );
         }
 
-
         updateProgress();
-
 
         webStatus.setText(
                 "WebView: antrean siap"
         );
-
 
         Toast.makeText(
                 this,
@@ -2286,10 +1840,8 @@ public class MainActivity extends Activity {
                 Toast.LENGTH_SHORT
         ).show();
 
-
         showPage(1);
     }
-
 
     // =========================================================
     // QUEUE ITEM
@@ -2303,11 +1855,9 @@ public class MainActivity extends Activity {
         LinearLayout card =
                 new LinearLayout(this);
 
-
         card.setOrientation(
                 LinearLayout.VERTICAL
         );
-
 
         card.setPadding(
                 dp(15),
@@ -2315,7 +1865,6 @@ public class MainActivity extends Activity {
                 dp(15),
                 dp(14)
         );
-
 
         card.setBackground(
                 round(
@@ -2330,13 +1879,11 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         LinearLayout.LayoutParams params =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
-
 
         params.setMargins(
                 0,
@@ -2345,12 +1892,10 @@ public class MainActivity extends Activity {
                 dp(10)
         );
 
-
         queue.addView(
                 card,
                 params
         );
-
 
         TextView status =
                 text(
@@ -2359,12 +1904,10 @@ public class MainActivity extends Activity {
                         16
                 );
 
-
         status.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
-
 
         TextView link =
                 text(
@@ -2372,47 +1915,27 @@ public class MainActivity extends Activity {
                         12
                 );
 
-
         link.setTextColor(
-                Color.rgb(
-                        107,
-                        114,
-                        128
-                )
+                Color.rgb(107, 114, 128)
         );
 
-
-        link.setMaxLines(
-                3
-        );
-
+        link.setMaxLines(3);
 
         Button process =
                 secondaryButton(
                         "Proses Link Ini"
                 );
 
-
         process.setOnClickListener(
                 v -> startSingle(index)
         );
 
-
-        card.addView(
-                status
-        );
-
+        card.addView(status);
 
         card.addView(
                 link,
-                marginParams(
-                        0,
-                        3,
-                        0,
-                        8
-                )
+                marginParams(0, 3, 0, 8)
         );
-
 
         card.addView(
                 process,
@@ -2422,26 +1945,19 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         card.setTag(status);
     }
 
-
     // =========================================================
-    // START SINGLE
+    // START
     // =========================================================
 
-    private void startSingle(
-            int index
-    ) {
+    private void startSingle(int index) {
 
-        if (
-                index < 0 ||
-                        index >= urls.size()
-        ) {
+        if (index < 0 ||
+                index >= urls.size()) {
             return;
         }
-
 
         if (processing) {
 
@@ -2454,41 +1970,19 @@ public class MainActivity extends Activity {
             return;
         }
 
+        handler.removeCallbacksAndMessages(null);
 
-        handler.removeCallbacksAndMessages(
-                null
-        );
-
-
-        currentIndex =
-                index;
-
-
-        processing =
-                true;
-
-
-        submitClicked =
-                false;
-
-
-        downloadStarted =
-                false;
-
-
-        currentCaption =
-                "";
-
-
-        currentDownloadId =
-                -1L;
-
+        currentIndex = index;
+        processing = true;
+        submitClicked = false;
+        downloadStarted = false;
+        currentCaption = "";
+        currentDownloadId = -1L;
 
         setStatus(
                 index,
                 "Memproses"
         );
-
 
         progressText.setText(
                 "Progress: "
@@ -2497,26 +1991,18 @@ public class MainActivity extends Activity {
                         + urls.size()
         );
 
-
         webStatus.setText(
                 "WebView: membuka SaveTikTok..."
         );
-
 
         webView.setVisibility(
                 View.GONE
         );
 
-
         webView.loadUrl(
                 SAVE_URL
         );
     }
-
-
-    // =========================================================
-    // START ALL
-    // =========================================================
 
     private void startAll() {
 
@@ -2531,7 +2017,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-
         if (processing) {
 
             Toast.makeText(
@@ -2543,13 +2028,11 @@ public class MainActivity extends Activity {
             return;
         }
 
-
         startSingle(0);
     }
 
-
     // =========================================================
-    // FIND SAVETIKTOK INPUT
+    // SAVETIKTOK INPUT
     // =========================================================
 
     private void waitForSaveTikTokInput(
@@ -2557,87 +2040,56 @@ public class MainActivity extends Activity {
             int attempt
     ) {
 
-        if (
-                !processing ||
-                        currentIndex < 0 ||
-                        submitClicked
-        ) {
+        if (!processing ||
+                currentIndex < 0 ||
+                submitClicked) {
             return;
         }
 
-
-        if (
-                attempt >= MAX_INPUT_CHECKS
-        ) {
+        if (attempt >= MAX_INPUT_CHECKS) {
 
             webStatus.setText(
                     "WebView: kolom URL tidak ditemukan"
             );
-
 
             setStatus(
                     currentIndex,
                     "Kolom URL tidak ditemukan"
             );
 
-
             processing = false;
 
             return;
         }
 
-
         String js =
                 "(function(){"
-
-                        + "var fields="
-                        + "Array.from("
-                        + "document.querySelectorAll("
-                        + "'input,textarea'"
-                        + ")"
-                        + ");"
-
-                        + "var field="
-                        + "fields.find(function(el){"
-
-                        + "var p=("
-                        + "(el.placeholder||'')+' '"
-                        + "+(el.getAttribute("
-                        + "'aria-label'"
-                        + ")||'')+' '"
-                        + "+(el.name||'')+' '"
-                        + "+(el.type||'')"
-                        + ").toLowerCase();"
-
+                        + "var fields=Array.from("
+                        + "document.querySelectorAll('input,textarea'));"
+                        + "var field=fields.find(function(el){"
+                        + "var p=((el.placeholder||'')+' '+"
+                        + "(el.getAttribute('aria-label')||'')+' '+"
+                        + "(el.name||'')+' '+"
+                        + "(el.type||'')).toLowerCase();"
                         + "return p.includes('tautan')"
                         + "||p.includes('tiktok')"
                         + "||p.includes('link')"
                         + "||p.includes('url')"
                         + "||el.type==='url';"
-
                         + "});"
-
-                        + "return field?"
-                        + "'FOUND':'WAIT';"
-
+                        + "return field?'FOUND':'WAIT';"
                         + "})()";
-
 
         webView.evaluateJavascript(
                 js,
                 result -> {
 
-                    if (
-                            result != null &&
-                                    result.contains(
-                                            "FOUND"
-                                    )
-                    ) {
+                    if (result != null &&
+                            result.contains("FOUND")) {
 
                         webStatus.setText(
                                 "WebView: kolom URL ditemukan..."
                         );
-
 
                         handler.postDelayed(
                                 () ->
@@ -2662,163 +2114,93 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // INJECT URL
+    // INJECT
     // =========================================================
 
     private void injectTikTokUrl(
             String tiktokUrl
     ) {
 
-        if (
-                !processing ||
-                        currentIndex < 0 ||
-                        submitClicked
-        ) {
+        if (!processing ||
+                currentIndex < 0 ||
+                submitClicked) {
             return;
         }
 
-
         String safeUrl =
-                JSONObject.quote(
-                        tiktokUrl
-                );
-
+                JSONObject.quote(tiktokUrl);
 
         String js =
                 "(function(){"
-
-                        + "var fields="
-                        + "Array.from("
-                        + "document.querySelectorAll("
-                        + "'input,textarea'"
-                        + ")"
-                        + ");"
-
-                        + "var field="
-                        + "fields.find(function(el){"
-
-                        + "var p=("
-                        + "(el.placeholder||'')+' '"
-                        + "+(el.getAttribute("
-                        + "'aria-label'"
-                        + ")||'')+' '"
-                        + "+(el.name||'')+' '"
-                        + "+(el.type||'')"
-                        + ").toLowerCase();"
-
+                        + "var fields=Array.from("
+                        + "document.querySelectorAll('input,textarea'));"
+                        + "var field=fields.find(function(el){"
+                        + "var p=((el.placeholder||'')+' '+"
+                        + "(el.getAttribute('aria-label')||'')+' '+"
+                        + "(el.name||'')+' '+"
+                        + "(el.type||'')).toLowerCase();"
                         + "return p.includes('tautan')"
                         + "||p.includes('tiktok')"
                         + "||p.includes('link')"
                         + "||p.includes('url')"
                         + "||el.type==='url';"
-
                         + "});"
-
-                        + "if(!field)"
-                        + "return 'NO_FIELD';"
-
-                        + "var proto="
-                        + "field instanceof "
-                        + "HTMLTextAreaElement"
-                        + "?HTMLTextAreaElement.prototype"
-                        + ":HTMLInputElement.prototype;"
-
-                        + "var desc="
-                        + "Object.getOwnPropertyDescriptor("
+                        + "if(!field)return 'NO_FIELD';"
+                        + "var proto=field instanceof "
+                        + "HTMLTextAreaElement?"
+                        + "HTMLTextAreaElement.prototype:"
+                        + "HTMLInputElement.prototype;"
+                        + "var desc=Object.getOwnPropertyDescriptor("
                         + "proto,'value');"
-
                         + "if(desc&&desc.set){"
                         + "desc.set.call(field,"
                         + safeUrl
                         + ");"
-                        + "}else{"
-                        + "field.value="
+                        + "}else{field.value="
                         + safeUrl
-                        + ";"
-                        + "}"
-
-                        + "field.dispatchEvent("
-                        + "new Event("
-                        + "'input',"
-                        + "{bubbles:true}"
-                        + ")"
-                        + ");"
-
-                        + "field.dispatchEvent("
-                        + "new Event("
-                        + "'change',"
-                        + "{bubbles:true}"
-                        + ")"
-                        + ");"
-
+                        + ";}"
+                        + "field.dispatchEvent(new Event("
+                        + "'input',{bubbles:true}));"
+                        + "field.dispatchEvent(new Event("
+                        + "'change',{bubbles:true}));"
                         + "field.focus();"
-
                         + "if(field.value!=="
                         + safeUrl
-                        + ")"
-                        + "return 'VALUE_FAILED';"
-
-                        + "var buttons="
-                        + "Array.from("
+                        + ")return 'VALUE_FAILED';"
+                        + "var buttons=Array.from("
                         + "document.querySelectorAll("
                         + "'button,input[type=submit],"
-                        + "input[type=button],a'"
-                        + ")"
-                        + ");"
-
-                        + "var downloadButton="
-                        + "buttons.find(function(el){"
-
-                        + "var t=("
-                        + "el.innerText||"
-                        + "el.textContent||"
-                        + "el.value||"
-                        + "el.getAttribute("
-                        + "'aria-label'"
-                        + ")||''"
-                        + ").replace(/\\s+/g,' ')"
-                        + ".trim().toLowerCase();"
-
-                        + "return t==='unduh'"
-                        + "||t==='download';"
-
+                        + "input[type=button],a'));"
+                        + "var downloadButton=buttons.find(function(el){"
+                        + "var t=(el.innerText||el.textContent||"
+                        + "el.value||el.getAttribute('aria-label')||'')"
+                        + ".replace(/\\s+/g,' ').trim().toLowerCase();"
+                        + "return t==='unduh'||t==='download';"
                         + "});"
-
                         + "if(!downloadButton)"
                         + "return 'NO_DOWNLOAD_BUTTON';"
-
                         + "downloadButton.click();"
-
                         + "return 'OK';"
-
                         + "})()";
-
 
         webView.evaluateJavascript(
                 js,
                 result -> {
 
-                    if (
-                            result != null &&
-                                    result.contains("OK")
-                    ) {
+                    if (result != null &&
+                            result.contains("OK")) {
 
-                        submitClicked =
-                                true;
-
+                        submitClicked = true;
 
                         webStatus.setText(
                                 "WebView: URL berhasil dikirim, menunggu hasil..."
                         );
 
-
                         setStatus(
                                 currentIndex,
                                 "Menunggu hasil SaveTikTok"
                         );
-
 
                         handler.postDelayed(
                                 () ->
@@ -2828,14 +2210,11 @@ public class MainActivity extends Activity {
 
                     } else {
 
-                        submitClicked =
-                                false;
-
+                        submitClicked = false;
 
                         webStatus.setText(
                                 "WebView: URL belum berhasil dikirim..."
                         );
-
 
                         handler.postDelayed(
                                 () ->
@@ -2850,130 +2229,76 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // FIND MP4 HD
+    // MP4 HD
     // =========================================================
 
     private void findMp4HdButton(
             int attempt
     ) {
 
-        if (
-                !processing ||
-                        currentIndex < 0 ||
-                        downloadStarted
-        ) {
+        if (!processing ||
+                currentIndex < 0 ||
+                downloadStarted) {
             return;
         }
 
-
-        if (
-                attempt >= MAX_MP4_HD_CHECKS
-        ) {
+        if (attempt >= MAX_MP4_HD_CHECKS) {
 
             webStatus.setText(
                     "WebView: tombol MP4 HD tidak ditemukan"
             );
-
 
             setStatus(
                     currentIndex,
                     "MP4 HD tidak ditemukan"
             );
 
-
             processing = false;
 
             return;
         }
 
-
         String js =
                 "(function(){"
-
-                        + "var root="
-                        + "document.querySelector("
-                        + "'#download-result'"
-                        + ");"
-
-                        + "if(!root)"
-                        + "return JSON.stringify("
-                        + "{state:'WAIT'}"
-                        + ");"
-
-                        + "var card="
-                        + "root.querySelector("
-                        + "'.video-data .tik-video'"
-                        + ");"
-
-                        + "if(!card)"
-                        + "return JSON.stringify("
-                        + "{state:'WAIT'}"
-                        + ");"
-
-                        + "var captionEl="
-                        + "card.querySelector("
-                        + "'.tik-left .thumbnail .content "
-                        + ".clearfix h3'"
-                        + ");"
-
-                        + "var buttons="
-                        + "Array.from("
-                        + "card.querySelectorAll("
-                        + "'.dl-action a.tik-button-dl'"
-                        + ")"
-                        + ");"
-
-                        + "var hd="
-                        + "buttons.find(function(el){"
-
-                        + "var t=("
-                        + "el.innerText||"
-                        + "el.textContent||''"
-                        + ").replace(/\\s+/g,' ')"
-                        + ".trim().toLowerCase();"
-
-                        + "return t==='unduh mp4 hd'"
-                        + "||t==='download mp4 hd';"
-
+                        + "var root=document.querySelector("
+                        + "'#download-result');"
+                        + "if(!root)return JSON.stringify({state:'WAIT'});"
+                        + "var card=root.querySelector("
+                        + "'.video-data .tik-video');"
+                        + "if(!card)return JSON.stringify({state:'WAIT'});"
+                        + "var captionEl=card.querySelector("
+                        + "'.tik-left .thumbnail .content .clearfix h3');"
+                        + "var buttons=Array.from(card.querySelectorAll("
+                        + "'.dl-action a.tik-button-dl'));"
+                        + "var hd=buttons.find(function(el){"
+                        + "var t=(el.innerText||el.textContent||'')"
+                        + ".replace(/\\s+/g,' ').trim().toLowerCase();"
+                        + "return t==='unduh mp4 hd'||"
+                        + "t==='download mp4 hd';"
                         + "});"
-
-                        + "if(!hd)"
-                        + "return JSON.stringify("
-                        + "{state:'WAIT'}"
-                        + ");"
-
-                        + "var caption="
-                        + "captionEl?"
-                        + "(captionEl.innerText||"
-                        + "captionEl.textContent||'')"
+                        + "if(!hd)return JSON.stringify({state:'WAIT'});"
+                        + "var caption=captionEl?"
+                        + "(captionEl.innerText||captionEl.textContent||'')"
                         + ".trim():'';"
-
                         + "return JSON.stringify({"
                         + "state:'FOUND',"
                         + "caption:caption,"
-                        + "hasCaption:!!captionEl"
-                        + "});"
-
+                        + "hasCaption:!!captionEl});"
                         + "})()";
-
 
         webView.evaluateJavascript(
                 js,
                 result -> {
 
-                    if (
-                            result == null ||
-                                    !result.contains(
-                                            "\\\"state\\\":\\\"FOUND\\\""
-                                    )
-                    ) {
+                    if (result == null ||
+                            !result.contains(
+                                    "\\\"state\\\":\\\"FOUND\\\""
+                            )) {
 
                         webStatus.setText(
                                 "WebView: menunggu caption dan MP4 HD..."
                         );
-
 
                         handler.postDelayed(
                                 () ->
@@ -2983,10 +2308,8 @@ public class MainActivity extends Activity {
                                 500
                         );
 
-
                         return;
                     }
-
 
                     try {
 
@@ -2995,20 +2318,13 @@ public class MainActivity extends Activity {
                                         result
                                 ).nextValue();
 
-
                         String jsonText =
                                 parsed instanceof String
                                         ? (String) parsed
-                                        : String.valueOf(
-                                                parsed
-                                        );
-
+                                        : String.valueOf(parsed);
 
                         JSONObject obj =
-                                new JSONObject(
-                                        jsonText
-                                );
-
+                                new JSONObject(jsonText);
 
                         currentCaption =
                                 obj.optString(
@@ -3016,101 +2332,64 @@ public class MainActivity extends Activity {
                                         ""
                                 ).trim();
 
-
-                        if (
-                                currentCaption.isEmpty()
-                        ) {
+                        if (currentCaption.isEmpty()) {
 
                             webStatus.setText(
                                     "WebView: caption kosong"
                             );
-
 
                             setStatus(
                                     currentIndex,
                                     "Caption kosong"
                             );
 
-
                             processing = false;
 
                             return;
                         }
 
-
                         webStatus.setText(
                                 "WebView: caption ditemukan"
                         );
-
 
                         setStatus(
                                 currentIndex,
                                 "Caption ditemukan"
                         );
 
-
                         String clickJs =
                                 "(function(){"
-
-                                        + "var card="
-                                        + "document.querySelector("
-                                        + "'#download-result "
-                                        + ".video-data .tik-video'"
-                                        + ");"
-
-                                        + "if(!card)"
-                                        + "return 'WAIT';"
-
-                                        + "var buttons="
-                                        + "Array.from("
+                                        + "var card=document.querySelector("
+                                        + "'#download-result .video-data .tik-video');"
+                                        + "if(!card)return 'WAIT';"
+                                        + "var buttons=Array.from("
                                         + "card.querySelectorAll("
-                                        + "'.dl-action a.tik-button-dl'"
-                                        + ")"
-                                        + ");"
-
-                                        + "var hd="
-                                        + "buttons.find(function(el){"
-
-                                        + "var t=("
-                                        + "el.innerText||"
-                                        + "el.textContent||''"
-                                        + ").replace(/\\s+/g,' ')"
-                                        + ".trim().toLowerCase();"
-
-                                        + "return t==='unduh mp4 hd'"
-                                        + "||t==='download mp4 hd';"
-
+                                        + "'.dl-action a.tik-button-dl'));"
+                                        + "var hd=buttons.find(function(el){"
+                                        + "var t=(el.innerText||el.textContent||'')"
+                                        + ".replace(/\\s+/g,' ').trim().toLowerCase();"
+                                        + "return t==='unduh mp4 hd'||"
+                                        + "t==='download mp4 hd';"
                                         + "});"
-
-                                        + "if(!hd)"
-                                        + "return 'WAIT';"
-
+                                        + "if(!hd)return 'WAIT';"
                                         + "hd.click();"
-
                                         + "return 'CLICKED';"
-
                                         + "})()";
-
 
                         webView.evaluateJavascript(
                                 clickJs,
                                 clickResult -> {
 
-                                    if (
-                                            clickResult != null &&
-                                                    clickResult.contains(
-                                                            "CLICKED"
-                                                    )
-                                    ) {
+                                    if (clickResult != null &&
+                                            clickResult.contains(
+                                                    "CLICKED"
+                                            )) {
 
-                                        submitClicked =
-                                                true;
-
+                                        submitClicked = true;
 
                                         webStatus.setText(
                                                 "WebView: MP4 HD dipilih..."
                                         );
-
 
                                         setStatus(
                                                 currentIndex,
@@ -3123,18 +2402,15 @@ public class MainActivity extends Activity {
                                                 "WebView: gagal klik MP4 HD"
                                         );
 
-
                                         setStatus(
                                                 currentIndex,
                                                 "Gagal klik MP4 HD"
                                         );
 
-
                                         processing = false;
                                     }
                                 }
                         );
-
 
                     } catch (Exception e) {
 
@@ -3142,12 +2418,10 @@ public class MainActivity extends Activity {
                                 "WebView: gagal membaca caption"
                         );
 
-
                         setStatus(
                                 currentIndex,
                                 "Gagal membaca caption"
                         );
-
 
                         processing = false;
                     }
@@ -3155,9 +2429,8 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // HANDLE DOWNLOAD
+    // DOWNLOAD
     // =========================================================
 
     private void handleWebDownload(
@@ -3168,35 +2441,25 @@ public class MainActivity extends Activity {
             long contentLength
     ) {
 
-        if (
-                !processing ||
-                        currentIndex < 0 ||
-                        downloadStarted
-        ) {
+        if (!processing ||
+                currentIndex < 0 ||
+                downloadStarted) {
             return;
         }
 
-
-        if (
-                url == null ||
-                        url.trim().isEmpty()
-        ) {
+        if (url == null ||
+                url.trim().isEmpty()) {
             return;
         }
-
 
         String normalizedUrl =
                 url.trim();
 
-
-        if (
-                handledDownloadUrls.contains(
-                        normalizedUrl
-                )
-        ) {
+        if (handledDownloadUrls.contains(
+                normalizedUrl
+        )) {
             return;
         }
-
 
         String lowerMime =
                 mimeType == null
@@ -3205,12 +2468,10 @@ public class MainActivity extends Activity {
                                 Locale.US
                         );
 
-
         String lowerUrl =
                 normalizedUrl.toLowerCase(
                         Locale.US
                 );
-
 
         String lowerDisposition =
                 contentDisposition == null
@@ -3219,110 +2480,68 @@ public class MainActivity extends Activity {
                                 Locale.US
                         );
 
-
         boolean looksLikeHtml =
-                lowerMime.contains(
-                        "text/html"
-                )
+                lowerMime.contains("text/html")
                         ||
                         lowerMime.contains(
                                 "application/xhtml"
                         );
 
-
         if (looksLikeHtml) {
-
-            webStatus.setText(
-                    "WebView: bukan video"
-            );
-
             return;
         }
-
 
         boolean isBin =
                 lowerMime.contains(
                         "application/octet-stream"
                 )
                         ||
-                        lowerDisposition.contains(
-                                ".bin"
-                        )
+                        lowerDisposition.contains(".bin")
                         ||
                         lowerUrl.matches(
                                 ".*\\.bin(?:[?#].*)?$"
                         );
 
-
         boolean looksLikeVideo =
-                lowerMime.startsWith(
-                        "video/"
-                )
+                lowerMime.startsWith("video/")
                         ||
-                        lowerMime.contains(
-                                "mp4"
-                        )
+                        lowerMime.contains("mp4")
                         ||
-                        lowerDisposition.contains(
-                                ".mp4"
-                        )
+                        lowerDisposition.contains(".mp4")
                         ||
-                        lowerUrl.contains(
-                                ".mp4"
-                        );
-
+                        lowerUrl.contains(".mp4");
 
         /*
-         * SaveTikTok terkadang memberikan MP4 HD
+         * SaveTikTok MP4 HD terkadang dikirim
          * sebagai application/octet-stream / .bin.
          */
-        if (
-                isBin &&
-                        submitClicked
-        ) {
-
+        if (isBin && submitClicked) {
             looksLikeVideo = true;
         }
 
-
         if (!looksLikeVideo) {
-
-            webStatus.setText(
-                    "WebView: format bukan MP4"
-            );
-
             return;
         }
-
 
         handledDownloadUrls.add(
                 normalizedUrl
         );
 
-
-        if (
-                handledDownloadUrls.size() > 20
-        ) {
+        if (handledDownloadUrls.size() > 20) {
 
             String first =
                     handledDownloadUrls
                             .iterator()
                             .next();
 
-
-            handledDownloadUrls.remove(
-                    first
-            );
+            handledDownloadUrls.remove(first);
         }
 
-
         downloadStarted = true;
-
 
         webStatus.setText(
                 "WebView: file MP4 ditemukan..."
         );
-
 
         enqueueDownload(
                 normalizedUrl,
@@ -3331,11 +2550,6 @@ public class MainActivity extends Activity {
                 contentDisposition
         );
     }
-
-
-    // =========================================================
-    // ENQUEUE DOWNLOAD
-    // =========================================================
 
     private void enqueueDownload(
             String url,
@@ -3352,39 +2566,31 @@ public class MainActivity extends Activity {
                                     Context.DOWNLOAD_SERVICE
                             );
 
-
             DownloadManager.Request request =
                     new DownloadManager.Request(
                             Uri.parse(url)
                     );
-
 
             request.setTitle(
                     "TikTok "
                             + (currentIndex + 1)
             );
 
-
             request.setDescription(
                     "TikTok Download Manager"
             );
-
 
             request.setNotificationVisibility(
                     DownloadManager.Request
                             .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
             );
 
-
             request.setMimeType(
                     "video/mp4"
             );
 
-
-            if (
-                    userAgent != null &&
-                            !userAgent.isEmpty()
-            ) {
+            if (userAgent != null &&
+                    !userAgent.isEmpty()) {
 
                 request.addRequestHeader(
                         "User-Agent",
@@ -3392,19 +2598,13 @@ public class MainActivity extends Activity {
                 );
             }
 
-
             String cookie =
                     CookieManager
                             .getInstance()
-                            .getCookie(
-                                    url
-                            );
+                            .getCookie(url);
 
-
-            if (
-                    cookie != null &&
-                            !cookie.isEmpty()
-            ) {
+            if (cookie != null &&
+                    !cookie.isEmpty()) {
 
                 request.addRequestHeader(
                         "Cookie",
@@ -3412,12 +2612,10 @@ public class MainActivity extends Activity {
                 );
             }
 
-
             request.addRequestHeader(
                     "Referer",
                     SAVE_URL
             );
-
 
             String folder =
                     "TikTokDownloadManager/"
@@ -3427,41 +2625,27 @@ public class MainActivity extends Activity {
                                     currentIndex + 1
                             );
 
-
-            String filename =
-                    "video.mp4";
-
-
             request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
-                    folder
-                            + "/"
-                            + filename
+                    folder + "/video.mp4"
             );
 
-
             currentDownloadId =
-                    manager.enqueue(
-                            request
-                    );
-
+                    manager.enqueue(request);
 
             int completedIndex =
                     currentIndex;
-
 
             setStatus(
                     completedIndex,
                     "Download dimulai"
             );
 
-
             webStatus.setText(
                     "WebView: download dimulai → "
                             + "Download/"
                             + folder
             );
-
 
             progressText.setText(
                     "Progress: "
@@ -3470,11 +2654,9 @@ public class MainActivity extends Activity {
                             + urls.size()
             );
 
-
             saveCaptionFile(
                     completedIndex
             );
-
 
             Toast.makeText(
                     this,
@@ -3484,7 +2666,6 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_SHORT
             ).show();
 
-
             waitForDownloadCompletion(
                     manager,
                     currentDownloadId,
@@ -3492,19 +2673,15 @@ public class MainActivity extends Activity {
                     0
             );
 
-
         } catch (Exception e) {
 
             downloadStarted = false;
-
             processing = false;
-
 
             setStatus(
                     currentIndex,
                     "Gagal memulai download"
             );
-
 
             webStatus.setText(
                     "WebView: gagal download - "
@@ -3513,14 +2690,11 @@ public class MainActivity extends Activity {
         }
     }
 
-
     // =========================================================
-    // SAVE CAPTION
+    // CAPTION
     // =========================================================
 
-    private void saveCaptionFile(
-            int index
-    ) {
+    private void saveCaptionFile(int index) {
 
         try {
 
@@ -3528,7 +2702,6 @@ public class MainActivity extends Activity {
                     currentCaption == null
                             ? ""
                             : currentCaption.trim();
-
 
             String folder =
                     Environment.DIRECTORY_DOWNLOADS
@@ -3539,15 +2712,11 @@ public class MainActivity extends Activity {
                                     index + 1
                             );
 
-
-            if (
-                    Build.VERSION.SDK_INT >=
-                            Build.VERSION_CODES.Q
-            ) {
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.Q) {
 
                 android.content.ContentValues values =
                         new android.content.ContentValues();
-
 
                 values.put(
                         android.provider.MediaStore.Downloads
@@ -3555,13 +2724,11 @@ public class MainActivity extends Activity {
                         "caption.txt"
                 );
 
-
                 values.put(
                         android.provider.MediaStore.Downloads
                                 .MIME_TYPE,
                         "text/plain"
                 );
-
 
                 values.put(
                         android.provider.MediaStore.Downloads
@@ -3569,13 +2736,11 @@ public class MainActivity extends Activity {
                         folder
                 );
 
-
                 values.put(
                         android.provider.MediaStore.Downloads
                                 .IS_PENDING,
                         1
                 );
-
 
                 Uri uri =
                         getContentResolver().insert(
@@ -3585,15 +2750,12 @@ public class MainActivity extends Activity {
                                 values
                         );
 
-
                 if (uri != null) {
 
                     try (
                             OutputStream out =
                                     getContentResolver()
-                                            .openOutputStream(
-                                                    uri
-                                            )
+                                            .openOutputStream(uri)
                     ) {
 
                         if (out != null) {
@@ -3610,16 +2772,13 @@ public class MainActivity extends Activity {
                         }
                     }
 
-
                     values.clear();
-
 
                     values.put(
                             android.provider.MediaStore.Downloads
                                     .IS_PENDING,
                             0
                     );
-
 
                     getContentResolver().update(
                             uri,
@@ -3629,14 +2788,14 @@ public class MainActivity extends Activity {
                     );
                 }
 
-
             } else {
 
                 File dir =
                         new File(
                                 Environment
                                         .getExternalStoragePublicDirectory(
-                                                Environment.DIRECTORY_DOWNLOADS
+                                                Environment
+                                                        .DIRECTORY_DOWNLOADS
                                         ),
                                 "TikTokDownloadManager/"
                                         + String.format(
@@ -3646,11 +2805,9 @@ public class MainActivity extends Activity {
                                         )
                         );
 
-
                 if (!dir.exists()) {
                     dir.mkdirs();
                 }
-
 
                 File file =
                         new File(
@@ -3658,12 +2815,9 @@ public class MainActivity extends Activity {
                                 "caption.txt"
                         );
 
-
                 try (
                         FileOutputStream out =
-                                new FileOutputStream(
-                                        file
-                                )
+                                new FileOutputStream(file)
                 ) {
 
                     out.write(
@@ -3678,7 +2832,6 @@ public class MainActivity extends Activity {
                 }
             }
 
-
         } catch (Exception e) {
 
             webStatus.setText(
@@ -3686,7 +2839,6 @@ public class MainActivity extends Activity {
             );
         }
     }
-
 
     // =========================================================
     // DOWNLOAD MONITOR
@@ -3699,45 +2851,48 @@ public class MainActivity extends Activity {
             int attempt
     ) {
 
-        if (attempt >= 120) {
+        /*
+         * 1200 x 500 ms = sekitar 10 menit.
+         *
+         * Jangan lanjut ke video berikutnya hanya
+         * karena timeout. DownloadManager harus
+         * benar-benar selesai atau gagal.
+         */
+        if (attempt >= 1200) {
 
             setStatus(
                     completedIndex,
-                    "Download berjalan"
+                    "Download masih berjalan"
             );
-
 
             handler.postDelayed(
                     () ->
-                            finishCurrentAndNext(
-                                    completedIndex
+                            waitForDownloadCompletion(
+                                    manager,
+                                    downloadId,
+                                    completedIndex,
+                                    attempt
                             ),
-                    1000
+                    5000
             );
-
 
             return;
         }
 
-
         DownloadManager.Query query =
                 new DownloadManager.Query();
-
 
         query.setFilterById(
                 downloadId
         );
-
 
         try (
                 android.database.Cursor cursor =
                         manager.query(query)
         ) {
 
-            if (
-                    cursor != null &&
-                            cursor.moveToFirst()
-            ) {
+            if (cursor != null &&
+                    cursor.moveToFirst()) {
 
                 int status =
                         cursor.getInt(
@@ -3747,22 +2902,17 @@ public class MainActivity extends Activity {
                                 )
                         );
 
-
-                if (
-                        status ==
-                                DownloadManager.STATUS_SUCCESSFUL
-                ) {
+                if (status ==
+                        DownloadManager.STATUS_SUCCESSFUL) {
 
                     setStatus(
                             completedIndex,
                             "Selesai"
                     );
 
-
                     webStatus.setText(
                             "WebView: download selesai"
                     );
-
 
                     handler.postDelayed(
                             () ->
@@ -3772,15 +2922,11 @@ public class MainActivity extends Activity {
                             700
                     );
 
-
                     return;
                 }
 
-
-                if (
-                        status ==
-                                DownloadManager.STATUS_FAILED
-                ) {
+                if (status ==
+                        DownloadManager.STATUS_FAILED) {
 
                     int reason =
                             cursor.getInt(
@@ -3790,14 +2936,8 @@ public class MainActivity extends Activity {
                                     )
                             );
 
-
-                    downloadStarted =
-                            false;
-
-
-                    processing =
-                            false;
-
+                    downloadStarted = false;
+                    processing = false;
 
                     setStatus(
                             completedIndex,
@@ -3806,15 +2946,12 @@ public class MainActivity extends Activity {
                                     + ")"
                     );
 
-
                     webStatus.setText(
                             "WebView: download gagal"
                     );
 
-
                     return;
                 }
-
 
                 long downloaded =
                         cursor.getLong(
@@ -3824,7 +2961,6 @@ public class MainActivity extends Activity {
                                 )
                         );
 
-
                 long total =
                         cursor.getLong(
                                 cursor.getColumnIndexOrThrow(
@@ -3832,7 +2968,6 @@ public class MainActivity extends Activity {
                                                 .COLUMN_TOTAL_SIZE_BYTES
                                 )
                         );
-
 
                 if (total > 0) {
 
@@ -3846,14 +2981,12 @@ public class MainActivity extends Activity {
                                     )
                             );
 
-
                     setStatus(
                             completedIndex,
                             "Download "
                                     + percent
                                     + "%"
                     );
-
 
                     webStatus.setText(
                             "WebView: download "
@@ -3870,10 +3003,8 @@ public class MainActivity extends Activity {
                 }
             }
 
-
         } catch (Exception ignored) {
         }
-
 
         handler.postDelayed(
                 () ->
@@ -3887,9 +3018,8 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // FINISH + NEXT
+    // FINISH
     // =========================================================
 
     private void finishCurrentAndNext(
@@ -3897,20 +3027,15 @@ public class MainActivity extends Activity {
     ) {
 
         processing = false;
-
         submitClicked = false;
-
         downloadStarted = false;
 
-
         /*
-         * currentDownloadId masih tersedia ketika
-         * Finished card dibuat.
+         * currentDownloadId sengaja masih ada
+         * ketika Finished card dibuat.
          */
-        if (
-                completedIndex >= 0 &&
-                        completedIndex < urls.size()
-        ) {
+        if (completedIndex >= 0 &&
+                completedIndex < urls.size()) {
 
             addFinishedItem(
                     completedIndex,
@@ -3918,33 +3043,23 @@ public class MainActivity extends Activity {
             );
         }
 
-
         currentCaption = "";
-
         currentDownloadId = -1L;
-
 
         int next =
                 completedIndex + 1;
 
+        if (next < urls.size()) {
 
-        if (
-                next < urls.size()
-        ) {
-
-            startSingle(
-                    next
-            );
+            startSingle(next);
 
         } else {
 
             currentIndex = -1;
 
-
             webStatus.setText(
                     "WebView: semua antrean selesai"
             );
-
 
             progressText.setText(
                     "Progress: "
@@ -3953,18 +3068,15 @@ public class MainActivity extends Activity {
                             + urls.size()
             );
 
-
             Toast.makeText(
                     this,
                     "Semua antrean sudah diproses.",
                     Toast.LENGTH_LONG
             ).show();
 
-
             showPage(2);
         }
     }
-
 
     // =========================================================
     // CLEAR
@@ -3972,62 +3084,41 @@ public class MainActivity extends Activity {
 
     private void clearQueue() {
 
-        handler.removeCallbacksAndMessages(
-                null
-        );
-
+        handler.removeCallbacksAndMessages(null);
 
         urls.clear();
 
-
         currentIndex = -1;
-
         processing = false;
-
         submitClicked = false;
-
         downloadStarted = false;
-
         currentCaption = "";
-
         currentDownloadId = -1L;
 
-
         handledDownloadUrls.clear();
-
         clipboardAddedUrls.clear();
-
 
         if (queue != null) {
             queue.removeAllViews();
         }
 
-
         if (finishedList != null) {
             finishedList.removeAllViews();
         }
-
 
         if (input != null) {
             input.setText("");
         }
 
-
         if (progressText != null) {
-
-            progressText.setText(
-                    "0 / 0"
-            );
+            progressText.setText("0 / 0");
         }
 
-
         if (webStatus != null) {
-
             webStatus.setText(
                     "WebView: siap"
             );
         }
-
 
         if (webView != null) {
 
@@ -4038,17 +3129,14 @@ public class MainActivity extends Activity {
             );
         }
 
-
         Toast.makeText(
                 this,
                 "Antrean dibersihkan.",
                 Toast.LENGTH_SHORT
         ).show();
 
-
         showPage(0);
     }
-
 
     // =========================================================
     // STATUS
@@ -4059,29 +3147,19 @@ public class MainActivity extends Activity {
             String value
     ) {
 
-        if (
-                queue == null ||
-                        index < 0 ||
-                        index >=
-                                queue.getChildCount()
-        ) {
+        if (queue == null ||
+                index < 0 ||
+                index >= queue.getChildCount()) {
             return;
         }
 
-
         View card =
-                queue.getChildAt(
-                        index
-                );
-
+                queue.getChildAt(index);
 
         Object tag =
                 card.getTag();
 
-
-        if (
-                tag instanceof TextView
-        ) {
+        if (tag instanceof TextView) {
 
             ((TextView) tag).setText(
                     "#" + (index + 1)
@@ -4091,13 +3169,11 @@ public class MainActivity extends Activity {
         }
     }
 
-
     private void updateProgress() {
 
         if (progressText == null) {
             return;
         }
-
 
         progressText.setText(
                 "0 / "
@@ -4105,19 +3181,15 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // PAGE NAVIGATION
+    // PAGE
     // =========================================================
 
-    private void showPage(
-            int page
-    ) {
+    private void showPage(int page) {
 
         if (downloadPage == null) {
             return;
         }
-
 
         downloadPage.setVisibility(
                 page == 0
@@ -4125,20 +3197,17 @@ public class MainActivity extends Activity {
                         : View.GONE
         );
 
-
         progressPage.setVisibility(
                 page == 1
                         ? View.VISIBLE
                         : View.GONE
         );
 
-
         finishedPage.setVisibility(
                 page == 2
                         ? View.VISIBLE
                         : View.GONE
         );
-
 
         if (navDownload != null) {
 
@@ -4157,7 +3226,6 @@ public class MainActivity extends Activity {
             );
         }
 
-
         if (navProgress != null) {
 
             navProgress.setTextColor(
@@ -4174,7 +3242,6 @@ public class MainActivity extends Activity {
                             )
             );
         }
-
 
         if (navFinished != null) {
 
@@ -4194,7 +3261,6 @@ public class MainActivity extends Activity {
         }
     }
 
-
     // =========================================================
     // UI HELPERS
     // =========================================================
@@ -4207,34 +3273,24 @@ public class MainActivity extends Activity {
         TextView view =
                 new TextView(this);
 
-
         view.setText(
-                icon
-                        + "\n"
-                        + label
+                icon + "\n" + label
         );
 
-
-        view.setTextSize(
-                11
-        );
-
+        view.setTextSize(11);
 
         view.setGravity(
                 Gravity.CENTER
         );
-
 
         view.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         view.setBackgroundColor(
                 Color.TRANSPARENT
         );
-
 
         view.setTextColor(
                 Color.rgb(
@@ -4244,10 +3300,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return view;
     }
-
 
     private TextView text(
             String value,
@@ -4257,16 +3311,9 @@ public class MainActivity extends Activity {
         TextView view =
                 new TextView(this);
 
+        view.setText(value);
 
-        view.setText(
-                value
-        );
-
-
-        view.setTextSize(
-                size
-        );
-
+        view.setTextSize(size);
 
         view.setTextColor(
                 Color.rgb(
@@ -4276,15 +3323,12 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         view.setGravity(
                 Gravity.CENTER_VERTICAL
         );
 
-
         return view;
     }
-
 
     private Button primaryButton(
             String value
@@ -4293,37 +3337,22 @@ public class MainActivity extends Activity {
         Button button =
                 new Button(this);
 
-
-        button.setText(
-                value
-        );
-
-
-        button.setTextSize(
-                14
-        );
-
-
-        button.setAllCaps(
-                false
-        );
-
+        button.setText(value);
+        button.setTextSize(14);
+        button.setAllCaps(false);
 
         button.setTextColor(
                 Color.WHITE
         );
-
 
         button.setTypeface(
                 Typeface.DEFAULT,
                 Typeface.BOLD
         );
 
-
         button.setGravity(
                 Gravity.CENTER
         );
-
 
         button.setBackground(
                 round(
@@ -4336,10 +3365,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return button;
     }
-
 
     private Button secondaryButton(
             String value
@@ -4348,21 +3375,9 @@ public class MainActivity extends Activity {
         Button button =
                 new Button(this);
 
-
-        button.setText(
-                value
-        );
-
-
-        button.setTextSize(
-                13
-        );
-
-
-        button.setAllCaps(
-                false
-        );
-
+        button.setText(value);
+        button.setTextSize(13);
+        button.setAllCaps(false);
 
         button.setTextColor(
                 Color.rgb(
@@ -4372,11 +3387,9 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         button.setGravity(
                 Gravity.CENTER
         );
-
 
         button.setBackground(
                 round(
@@ -4395,10 +3408,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return button;
     }
-
 
     private LinearLayout roundedBox(
             int fill,
@@ -4410,7 +3421,6 @@ public class MainActivity extends Activity {
         LinearLayout box =
                 new LinearLayout(this);
 
-
         box.setBackground(
                 round(
                         fill,
@@ -4420,10 +3430,8 @@ public class MainActivity extends Activity {
                 )
         );
 
-
         return box;
     }
-
 
     private GradientDrawable round(
             int fill,
@@ -4438,7 +3446,6 @@ public class MainActivity extends Activity {
         );
     }
 
-
     private GradientDrawable round(
             int fill,
             int radius,
@@ -4449,16 +3456,11 @@ public class MainActivity extends Activity {
         GradientDrawable drawable =
                 new GradientDrawable();
 
-
-        drawable.setColor(
-                fill
-        );
-
+        drawable.setColor(fill);
 
         drawable.setCornerRadius(
                 dp(radius)
         );
-
 
         if (strokeWidth > 0) {
 
@@ -4468,10 +3470,8 @@ public class MainActivity extends Activity {
             );
         }
 
-
         return drawable;
     }
-
 
     private FrameLayout.LayoutParams
     matchParams() {
@@ -4481,7 +3481,6 @@ public class MainActivity extends Activity {
                 -1
         );
     }
-
 
     private LinearLayout.LayoutParams
     marginParams(
@@ -4497,7 +3496,6 @@ public class MainActivity extends Activity {
                         -2
                 );
 
-
         params.setMargins(
                 dp(left),
                 dp(top),
@@ -4505,14 +3503,10 @@ public class MainActivity extends Activity {
                 dp(bottom)
         );
 
-
         return params;
     }
 
-
-    private int dp(
-            int value
-    ) {
+    private int dp(int value) {
 
         return (int) (
                 value *
@@ -4522,9 +3516,8 @@ public class MainActivity extends Activity {
         );
     }
 
-
     // =========================================================
-    // STORAGE PERMISSION
+    // STORAGE
     // =========================================================
 
     private void requestStorageIfNeeded() {
@@ -4549,7 +3542,6 @@ public class MainActivity extends Activity {
             );
         }
     }
-
 
     // =========================================================
     // BACK
