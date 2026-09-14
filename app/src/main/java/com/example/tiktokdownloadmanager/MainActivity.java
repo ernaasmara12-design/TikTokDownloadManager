@@ -8,11 +8,11 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.CookieManager;
@@ -27,16 +27,16 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.MediaController;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.VideoView;
 
 import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.Locale;
-
 
 public class MainActivity extends Activity {
 
@@ -62,12 +62,6 @@ public class MainActivity extends Activity {
     private static final int MAX_INPUT_CHECKS = 20;
 
     private static final int MAX_MP4_HD_CHECKS = 30;
-
-    /*
-     * 10 menit
-     *
-     * 600 detik / 0.5 detik = 1200
-     */
 
     private static final int MAX_DOWNLOAD_CHECKS = 1200;
 
@@ -168,7 +162,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // MAIN UI
+    // BUILD UI
     // ============================================================
 
     private void buildUi() {
@@ -208,7 +202,7 @@ public class MainActivity extends Activity {
 
 
         // ========================================================
-        // CREATE PAGES
+        // PAGES
         // ========================================================
 
         downloadPage =
@@ -324,10 +318,7 @@ public class MainActivity extends Activity {
 
 
         // ========================================================
-        // WEBVIEW
-        //
-        // Mesin tetap sama.
-        // WebView tidak ditampilkan ke user.
+        // HIDDEN WEBVIEW
         // ========================================================
 
         webView =
@@ -347,16 +338,8 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // CONFIG WEBVIEW
-        // ========================================================
-
         configureWebView();
 
-
-        // ========================================================
-        // SET CONTENT
-        // ========================================================
 
         setContentView(root);
 
@@ -391,10 +374,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // TITLE
-        // ========================================================
-
         TextView title =
                 text(
                         "Download",
@@ -412,10 +391,6 @@ public class MainActivity extends Activity {
                 title
         );
 
-
-        // ========================================================
-        // SUBTITLE
-        // ========================================================
 
         TextView subtitle =
                 text(
@@ -476,10 +451,6 @@ public class MainActivity extends Activity {
                 cardTitle
         );
 
-
-        // ========================================================
-        // INPUT
-        // ========================================================
 
         input =
                 new EditText(this);
@@ -549,10 +520,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // ADD BUTTON
-        // ========================================================
-
         Button addButton =
                 button(
                         "Tambah ke Antrian"
@@ -575,7 +542,7 @@ public class MainActivity extends Activity {
 
 
         // ========================================================
-        // INFORMATION CARD
+        // INFO
         // ========================================================
 
         LinearLayout info =
@@ -628,13 +595,20 @@ public class MainActivity extends Activity {
         );
 
 
+        addStep(
+                info,
+                "5",
+                "Video selesai dapat diputar dari Finished."
+        );
+
+
         content.addView(
                 info
         );
 
 
         // ========================================================
-        // STORAGE CARD
+        // STORAGE
         // ========================================================
 
         LinearLayout storage =
@@ -718,10 +692,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // TITLE
-        // ========================================================
-
         TextView title =
                 text(
                         "Progress",
@@ -774,10 +744,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // START ALL
-        // ========================================================
-
         Button startAll =
                 button(
                         "Mulai Semua"
@@ -793,10 +759,6 @@ public class MainActivity extends Activity {
                 startAll
         );
 
-
-        // ========================================================
-        // PROGRESS TEXT
-        // ========================================================
 
         progress =
                 text(
@@ -823,10 +785,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // WEB STATUS
-        // ========================================================
-
         webStatus =
                 text(
                         "WebView: siap",
@@ -843,10 +801,6 @@ public class MainActivity extends Activity {
                 webStatus
         );
 
-
-        // ========================================================
-        // QUEUE
-        // ========================================================
 
         queue =
                 new LinearLayout(this);
@@ -878,10 +832,6 @@ public class MainActivity extends Activity {
                 queueParams
         );
 
-
-        // ========================================================
-        // EMPTY
-        // ========================================================
 
         emptyProgress =
                 text(
@@ -948,10 +898,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // TITLE
-        // ========================================================
-
         TextView title =
                 text(
                         "Finished",
@@ -1004,10 +950,6 @@ public class MainActivity extends Activity {
         );
 
 
-        // ========================================================
-        // FINISHED LIST
-        // ========================================================
-
         finishedList =
                 new LinearLayout(this);
 
@@ -1021,10 +963,6 @@ public class MainActivity extends Activity {
                 finishedList
         );
 
-
-        // ========================================================
-        // EMPTY
-        // ========================================================
 
         emptyFinished =
                 text(
@@ -1066,7 +1004,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // NAVIGATION ITEM
+    // NAV ITEM
     // ============================================================
 
     private TextView createNavItem(
@@ -1141,7 +1079,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // UPDATE NAV
+    // NAV COLOR
     // ============================================================
 
     private void updateNavigation() {
@@ -1256,7 +1194,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // TEXT HELPER
+    // TEXT
     // ============================================================
 
     private TextView text(
@@ -1299,7 +1237,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // BUTTON HELPER
+    // BUTTON
     // ============================================================
 
     private Button button(
@@ -1324,7 +1262,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // WEBVIEW
+    // WEBVIEW CONFIG
     // ============================================================
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -1506,7 +1444,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // CHECK SAVE TIKTOK PAGE
+    // SAVE TIKTOK PAGE CHECK
     // ============================================================
 
     private boolean isSaveTikTokPage(
@@ -1600,11 +1538,6 @@ public class MainActivity extends Activity {
         queue.removeAllViews();
 
 
-        /*
-         * Bersihkan hasil lama untuk
-         * sesi antrean baru.
-         */
-
         if (finishedList != null) {
 
             finishedList.removeAllViews();
@@ -1623,7 +1556,6 @@ public class MainActivity extends Activity {
 
 
         updateProgress();
-
 
         updateEmptyStates();
 
@@ -1656,7 +1588,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // ADD QUEUE ITEM
+    // QUEUE ITEM
     // ============================================================
 
     private void addQueueItem(
@@ -1712,12 +1644,6 @@ public class MainActivity extends Activity {
                 link
         );
 
-
-        /*
-         * Simpan TextView status sebagai tag.
-         * Mesin download menggunakan ini
-         * untuk update status.
-         */
 
         card.setTag(
                 status
@@ -1785,10 +1711,6 @@ public class MainActivity extends Activity {
                 "WebView: membuka SaveTikTok..."
         );
 
-
-        /*
-         * WebView tetap tersembunyi.
-         */
 
         webView.setVisibility(
                 View.GONE
@@ -2503,15 +2425,6 @@ public class MainActivity extends Activity {
                         );
 
 
-        /*
-         * SaveTikTok MP4 HD kadang dikirim
-         * sebagai application/octet-stream
-         * atau .bin.
-         *
-         * Karena event ini terjadi setelah
-         * tombol MP4 HD dipilih, kita terima.
-         */
-
         if (isBin &&
                 submitClicked) {
 
@@ -2709,10 +2622,6 @@ public class MainActivity extends Activity {
             );
 
 
-            // ====================================================
-            // CAPTION
-            // ====================================================
-
             saveCaptionFile(
                     currentIndex
             );
@@ -2729,10 +2638,6 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_SHORT
             ).show();
 
-
-            // ====================================================
-            // MONITOR
-            // ====================================================
 
             waitForDownloadCompletion(
                     manager,
@@ -2793,10 +2698,6 @@ public class MainActivity extends Activity {
                                     index + 1
                             );
 
-
-            // ====================================================
-            // ANDROID 10+
-            // ====================================================
 
             if (Build.VERSION.SDK_INT >=
                     Build.VERSION_CODES.Q) {
@@ -2881,9 +2782,6 @@ public class MainActivity extends Activity {
 
             } else {
 
-                // =================================================
-                // ANDROID LAMA
-                // =================================================
 
                 java.io.File dir =
                         new java.io.File(
@@ -3071,25 +2969,41 @@ public class MainActivity extends Activity {
                 );
 
 
+                /*
+                 * Simpan ID sebelum currentDownloadId
+                 * di-reset.
+                 */
+
+                long finishedDownloadId =
+                        downloadId;
+
+
+                /*
+                 * Caption juga disalin sebelum
+                 * state dibersihkan.
+                 */
+
+                String finishedCaption =
+                        currentCaption == null
+                                ? ""
+                                : currentCaption;
+
+
                 downloadStarted = false;
 
                 currentDownloadId = -1L;
 
 
-                /*
-                 * Tambahkan ke halaman Finished.
-                 */
+                // =================================================
+                // TAMBAHKAN PREVIEW VIDEO
+                // =================================================
 
                 addFinishedItem(
                         completedIndex,
-                        currentCaption
+                        finishedCaption,
+                        finishedDownloadId
                 );
 
-
-                /*
-                 * Beri waktu sedikit agar file
-                 * benar-benar selesai ditulis.
-                 */
 
                 handler.postDelayed(
                         () ->
@@ -3246,15 +3160,11 @@ public class MainActivity extends Activity {
         } catch (Exception e) {
 
             /*
-             * Query error sementara tidak dianggap
-             * sebagai download selesai.
+             * Error query sementara tidak dianggap
+             * selesai.
              */
         }
 
-
-        // ========================================================
-        // CHECK LAGI
-        // ========================================================
 
         handler.postDelayed(
                 () ->
@@ -3270,89 +3180,13 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // FINISH CURRENT AND NEXT
-    // ============================================================
-
-    private void finishCurrentAndNext(
-            int completedIndex) {
-
-
-        processing = false;
-
-        submitClicked = false;
-
-        downloadStarted = false;
-
-        currentDownloadId = -1L;
-
-        currentCaption = "";
-
-
-        int next =
-                completedIndex + 1;
-
-
-        // ========================================================
-        // MASIH ADA ANTREAN
-        // ========================================================
-
-        if (next < urls.size()) {
-
-
-            startSingle(
-                    next
-            );
-
-
-            return;
-        }
-
-
-        // ========================================================
-        // SEMUA SELESAI
-        // ========================================================
-
-        currentIndex = -1;
-
-
-        webStatus.setText(
-                "Semua antrean selesai ✓"
-        );
-
-
-        progress.setText(
-                "Progress: " +
-                        urls.size() +
-                        " / " +
-                        urls.size()
-        );
-
-
-        updateEmptyStates();
-
-
-        Toast.makeText(
-                this,
-                "Semua antrean sudah selesai.",
-                Toast.LENGTH_LONG
-        ).show();
-
-
-        /*
-         * Otomatis tampilkan Finished.
-         */
-
-        showPage(2);
-    }
-
-
-    // ============================================================
-    // FINISHED ITEM
+    // FINISHED ITEM DENGAN VIDEO PREVIEW
     // ============================================================
 
     private void addFinishedItem(
             int index,
-            String caption) {
+            String caption,
+            long downloadId) {
 
         if (finishedList == null) {
             return;
@@ -3364,7 +3198,7 @@ public class MainActivity extends Activity {
 
 
         // ========================================================
-        // NUMBER
+        // NOMOR
         // ========================================================
 
         TextView number =
@@ -3387,6 +3221,197 @@ public class MainActivity extends Activity {
 
         card.addView(
                 number
+        );
+
+
+        // ========================================================
+        // VIDEO PREVIEW
+        // ========================================================
+
+        FrameLayout videoContainer =
+                new FrameLayout(this);
+
+
+        videoContainer.setBackgroundColor(
+                Color.BLACK
+        );
+
+
+        VideoView videoView =
+                new VideoView(this);
+
+
+        FrameLayout.LayoutParams
+                videoParams =
+                new FrameLayout.LayoutParams(
+                        -1,
+                        420
+                );
+
+
+        videoParams.gravity =
+                Gravity.CENTER;
+
+
+        videoContainer.addView(
+                videoView,
+                videoParams
+        );
+
+
+        /*
+         * Ambil URI hasil download dari
+         * DownloadManager.
+         */
+
+        try {
+
+            DownloadManager manager =
+                    (DownloadManager)
+                            getSystemService(
+                                    Context.DOWNLOAD_SERVICE
+                            );
+
+
+            Uri videoUri =
+                    manager.getUriForDownloadedFile(
+                            downloadId
+                    );
+
+
+            if (videoUri != null) {
+
+
+                videoView.setVideoURI(
+                        videoUri
+                );
+
+
+                MediaController controller =
+                        new MediaController(
+                                this
+                        );
+
+
+                controller.setAnchorView(
+                        videoView
+                );
+
+
+                videoView.setMediaController(
+                        controller
+                );
+
+
+                videoView.setOnPreparedListener(
+                        mp -> {
+
+                            /*
+                             * Jangan autoplay.
+                             * User menekan Play sendiri.
+                             */
+
+                            mp.setLooping(
+                                    false
+                            );
+                        }
+                );
+
+
+                videoView.setOnErrorListener(
+                        (mp,
+                         what,
+                         extra) -> {
+
+                            Toast.makeText(
+                                    this,
+                                    "Video preview tidak dapat diputar.",
+                                    Toast.LENGTH_SHORT
+                            ).show();
+
+
+                            return true;
+                        }
+                );
+
+
+            } else {
+
+                TextView unavailable =
+                        text(
+                                "Preview tidak tersedia",
+                                14
+                        );
+
+
+                unavailable.setTextColor(
+                        Color.WHITE
+                );
+
+
+                unavailable.setGravity(
+                        Gravity.CENTER
+                );
+
+
+                videoContainer.addView(
+                        unavailable,
+                        new FrameLayout.LayoutParams(
+                                -1,
+                                -1
+                        )
+                );
+            }
+
+
+        } catch (Exception e) {
+
+            TextView unavailable =
+                    text(
+                            "Preview tidak tersedia",
+                            14
+                    );
+
+
+            unavailable.setTextColor(
+                    Color.WHITE
+            );
+
+
+            unavailable.setGravity(
+                    Gravity.CENTER
+            );
+
+
+            videoContainer.addView(
+                    unavailable,
+                    new FrameLayout.LayoutParams(
+                            -1,
+                            -1
+                    )
+            );
+        }
+
+
+        LinearLayout.LayoutParams
+                videoContainerParams =
+                new LinearLayout.LayoutParams(
+                        -1,
+                        420
+                );
+
+
+        videoContainerParams.setMargins(
+                0,
+                12,
+                0,
+                14
+        );
+
+
+        card.addView(
+                videoContainer,
+                videoContainerParams
         );
 
 
@@ -3445,7 +3470,7 @@ public class MainActivity extends Activity {
 
 
         captionText.setMaxLines(
-                5
+                6
         );
 
 
@@ -3480,9 +3505,9 @@ public class MainActivity extends Activity {
         );
 
 
-        /*
-         * Terbaru ditaruh paling atas.
-         */
+        // ========================================================
+        // ADD TO TOP
+        // ========================================================
 
         finishedList.addView(
                 card,
@@ -3491,6 +3516,79 @@ public class MainActivity extends Activity {
 
 
         updateEmptyStates();
+    }
+
+
+    // ============================================================
+    // FINISH CURRENT AND NEXT
+    // ============================================================
+
+    private void finishCurrentAndNext(
+            int completedIndex) {
+
+
+        processing = false;
+
+        submitClicked = false;
+
+        downloadStarted = false;
+
+        currentDownloadId = -1L;
+
+        currentCaption = "";
+
+
+        int next =
+                completedIndex + 1;
+
+
+        // ========================================================
+        // NEXT
+        // ========================================================
+
+        if (next < urls.size()) {
+
+
+            startSingle(
+                    next
+            );
+
+
+            return;
+        }
+
+
+        // ========================================================
+        // ALL FINISHED
+        // ========================================================
+
+        currentIndex = -1;
+
+
+        webStatus.setText(
+                "Semua antrean selesai ✓"
+        );
+
+
+        progress.setText(
+                "Progress: " +
+                        urls.size() +
+                        " / " +
+                        urls.size()
+        );
+
+
+        updateEmptyStates();
+
+
+        Toast.makeText(
+                this,
+                "Semua antrean sudah selesai.",
+                Toast.LENGTH_LONG
+        ).show();
+
+
+        showPage(2);
     }
 
 
@@ -3560,7 +3658,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // EMPTY STATES
+    // EMPTY STATE
     // ============================================================
 
     private void updateEmptyStates() {
@@ -3588,7 +3686,7 @@ public class MainActivity extends Activity {
 
 
     // ============================================================
-    // CLEAR QUEUE
+    // CLEAR
     // ============================================================
 
     private void clearQueue() {
@@ -3691,11 +3789,6 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-
-        /*
-         * Karena WebView disembunyikan,
-         * tombol back hanya kembali ke Download.
-         */
 
         if (currentPage != 0) {
 
