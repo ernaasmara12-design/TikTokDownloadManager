@@ -139,6 +139,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+
                 if (!processing || currentIndex < 0) {
                     webStatus.setText("WebView: halaman siap");
                     return;
@@ -151,7 +152,8 @@ public class MainActivity extends Activity {
 
                 if (!submitClicked) {
                     webStatus.setText("WebView: mencari kolom URL...");
-                    handler.postDelayed(() -> waitForSaveTikTokInput(urls.get(currentIndex), 0), 1000);
+                    handler.postDelayed(() ->
+                            waitForSaveTikTokInput(urls.get(currentIndex), 0), 1000);
                 } else {
                     webStatus.setText("WebView: menunggu hasil...");
                 }
@@ -172,7 +174,8 @@ public class MainActivity extends Activity {
     private boolean isSaveTikTokPage(String url) {
         try {
             String host = Uri.parse(url).getHost();
-            return host != null && host.toLowerCase(Locale.US).contains("savetiktok.to");
+            return host != null &&
+                    host.toLowerCase(Locale.US).contains("savetiktok.to");
         } catch (Exception e) {
             return false;
         }
@@ -180,13 +183,18 @@ public class MainActivity extends Activity {
 
     private void loadQueue() {
         LinkedHashSet<String> unique = new LinkedHashSet<>();
+
         for (String line : input.getText().toString().split("\\r?\\n")) {
             String url = line.trim();
-            if (url.startsWith("http://") || url.startsWith("https://")) unique.add(url);
+
+            if (url.startsWith("http://") || url.startsWith("https://")) {
+                unique.add(url);
+            }
         }
 
         urls.clear();
         urls.addAll(unique);
+
         currentIndex = -1;
         processing = false;
         submitClicked = false;
@@ -194,13 +202,21 @@ public class MainActivity extends Activity {
         currentCaption = "";
         currentDownloadId = -1L;
         handledDownloadUrls.clear();
+
         handler.removeCallbacksAndMessages(null);
         queue.removeAllViews();
 
-        for (int i = 0; i < urls.size(); i++) addQueueItem(i, urls.get(i));
+        for (int i = 0; i < urls.size(); i++) {
+            addQueueItem(i, urls.get(i));
+        }
 
         updateProgress();
-        webStatus.setText(urls.isEmpty() ? "WebView: tidak ada URL" : "WebView: antrean siap");
+
+        webStatus.setText(
+                urls.isEmpty()
+                        ? "WebView: tidak ada URL"
+                        : "WebView: antrean siap"
+        );
     }
 
     private void addQueueItem(int index, String url) {
@@ -213,19 +229,24 @@ public class MainActivity extends Activity {
         link.setMaxLines(3);
 
         Button process = button("Proses Link Ini");
+
         process.setOnClickListener(v -> startSingle(index));
 
         card.addView(status);
         card.addView(link);
         card.addView(process);
+
         card.setTag(status);
         queue.addView(card);
     }
 
     private void startSingle(int index) {
-        if (index < 0 || index >= urls.size()) return;
+        if (index < 0 || index >= urls.size()) {
+            return;
+        }
 
         handler.removeCallbacksAndMessages(null);
+
         currentIndex = index;
         processing = true;
         submitClicked = false;
@@ -234,31 +255,52 @@ public class MainActivity extends Activity {
         currentDownloadId = -1L;
 
         setStatus(index, "Memproses");
-        progress.setText("Progress: " + (index + 1) + " / " + urls.size());
+
+        progress.setText(
+                "Progress: " + (index + 1) + " / " + urls.size()
+        );
+
         webStatus.setText("WebView: membuka SaveTikTok...");
+
         webView.setVisibility(View.GONE);
         webView.loadUrl(SAVE_URL);
     }
 
     private void startAll() {
         if (urls.isEmpty()) {
-            Toast.makeText(this, "Muat antrean dulu.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(
+                    this,
+                    "Muat antrean dulu.",
+                    Toast.LENGTH_SHORT
+            ).show();
             return;
         }
 
-        if (!processing) startSingle(0);
+        if (!processing) {
+            startSingle(0);
+        }
     }
 
     private void waitForSaveTikTokInput(String tiktokUrl, int attempt) {
-        if (!processing || currentIndex < 0 || submitClicked) return;
-
-        if (attempt >= MAX_INPUT_CHECKS) {
-            webStatus.setText("WebView: kolom URL tidak ditemukan");
-            setStatus(currentIndex, "Kolom URL SaveTikTok tidak ditemukan");
+        if (!processing || currentIndex < 0 || submitClicked) {
             return;
         }
 
-        String js = "(function(){" +
+        if (attempt >= MAX_INPUT_CHECKS) {
+            webStatus.setText(
+                    "WebView: kolom URL tidak ditemukan"
+            );
+
+            setStatus(
+                    currentIndex,
+                    "Kolom URL SaveTikTok tidak ditemukan"
+            );
+
+            return;
+        }
+
+        String js =
+                "(function(){" +
                 "var fields=Array.from(document.querySelectorAll('input,textarea'));" +
                 "var field=fields.find(function(el){" +
                 "var p=((el.placeholder||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.name||'')+' '+(el.type||'')).toLowerCase();" +
@@ -269,20 +311,38 @@ public class MainActivity extends Activity {
 
         webView.evaluateJavascript(js, result -> {
             if (result != null && result.contains("FOUND")) {
-                webStatus.setText("WebView: kolom URL ditemukan...");
-                handler.postDelayed(() -> injectTikTokUrl(tiktokUrl), 300);
+
+                webStatus.setText(
+                        "WebView: kolom URL ditemukan..."
+                );
+
+                handler.postDelayed(
+                        () -> injectTikTokUrl(tiktokUrl),
+                        300
+                );
+
             } else {
-                handler.postDelayed(() -> waitForSaveTikTokInput(tiktokUrl, attempt + 1), 500);
+
+                handler.postDelayed(
+                        () -> waitForSaveTikTokInput(
+                                tiktokUrl,
+                                attempt + 1
+                        ),
+                        500
+                );
             }
         });
     }
 
     private void injectTikTokUrl(String tiktokUrl) {
-        if (!processing || currentIndex < 0 || submitClicked) return;
+        if (!processing || currentIndex < 0 || submitClicked) {
+            return;
+        }
 
         String safeUrl = JSONObject.quote(tiktokUrl);
 
-        String js = "(function(){" +
+        String js =
+                "(function(){" +
                 "var fields=Array.from(document.querySelectorAll('input,textarea'));" +
                 "var field=fields.find(function(el){" +
                 "var p=((el.placeholder||'')+' '+(el.getAttribute('aria-label')||'')+' '+(el.name||'')+' '+(el.type||'')).toLowerCase();" +
@@ -291,7 +351,11 @@ public class MainActivity extends Activity {
                 "if(!field)return 'NO_FIELD';" +
                 "var proto=field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;" +
                 "var desc=Object.getOwnPropertyDescriptor(proto,'value');" +
-                "if(desc&&desc.set){desc.set.call(field," + safeUrl + ");}else{field.value=" + safeUrl + ";}" +
+                "if(desc&&desc.set){" +
+                "desc.set.call(field," + safeUrl + ");" +
+                "}else{" +
+                "field.value=" + safeUrl + ";" +
+                "}" +
                 "field.dispatchEvent(new Event('input',{bubbles:true}));" +
                 "field.dispatchEvent(new Event('change',{bubbles:true}));" +
                 "field.focus();" +
@@ -307,308 +371,896 @@ public class MainActivity extends Activity {
                 "})()";
 
         webView.evaluateJavascript(js, result -> {
+
             if (result != null && result.contains("OK")) {
+
                 submitClicked = true;
-                webStatus.setText("WebView: URL berhasil dikirim, menunggu hasil...");
-                setStatus(currentIndex, "Menunggu hasil SaveTikTok");
-                handler.postDelayed(() -> findMp4HdButton(0), 2000);
+
+                webStatus.setText(
+                        "WebView: URL berhasil dikirim, menunggu hasil..."
+                );
+
+                setStatus(
+                        currentIndex,
+                        "Menunggu hasil SaveTikTok"
+                );
+
+                handler.postDelayed(
+                        () -> findMp4HdButton(0),
+                        2000
+                );
+
             } else {
+
                 submitClicked = false;
-                webStatus.setText("WebView: URL belum berhasil dikirim, mencoba lagi...");
-                handler.postDelayed(() -> waitForSaveTikTokInput(tiktokUrl, 0), 1000);
+
+                webStatus.setText(
+                        "WebView: URL belum berhasil dikirim, mencoba lagi..."
+                );
+
+                handler.postDelayed(
+                        () -> waitForSaveTikTokInput(
+                                tiktokUrl,
+                                0
+                        ),
+                        1000
+                );
             }
         });
     }
 
     private void findMp4HdButton(int attempt) {
-        if (!processing || currentIndex < 0 || downloadStarted) return;
+        if (!processing || currentIndex < 0 || downloadStarted) {
+            return;
+        }
 
         if (attempt >= MAX_MP4_HD_CHECKS) {
-            webStatus.setText("WebView: tombol MP4 HD tidak ditemukan");
-            setStatus(currentIndex, "MP4 HD tidak ditemukan");
+
+            webStatus.setText(
+                    "WebView: tombol MP4 HD tidak ditemukan"
+            );
+
+            setStatus(
+                    currentIndex,
+                    "MP4 HD tidak ditemukan"
+            );
+
             return;
         }
 
         /*
-         * DEBUG DOM MODE
+         * Struktur DOM SaveTikTok yang ditemukan dari debug:
          *
-         * Jangan klik MP4 HD dulu.
-         * Kita mengambil struktur DOM nyata di sekitar tombol MP4 HD agar
-         * selector caption final bisa dibuat berdasarkan HTML sebenarnya,
-         * bukan berdasarkan tebakan.
+         * #download-result
+         *   > .video-data
+         *   > .tik-video
+         *   > .tik-left
+         *   > .thumbnail
+         *   > .content
+         *   > .clearfix
+         *   > h3
+         *
+         * Caption berada tepat di h3 tersebut.
          */
+
         String js =
                 "(function(){" +
-                "var buttons=Array.from(document.querySelectorAll('button,a,input[type=button],input[type=submit],[role=button]'));" +
-                "var target=buttons.find(function(el){" +
-                "var t=(el.innerText||el.textContent||el.value||el.getAttribute('aria-label')||'').replace(/\\s+/g,' ').trim().toLowerCase();" +
-                "return t==='unduh mp4 hd'||t==='download mp4 hd'||t.includes('unduh mp4 hd')||t.includes('download mp4 hd');" +
+                "var root=document.querySelector('#download-result');" +
+                "if(!root)return JSON.stringify({state:'WAIT'});" +
+
+                "var card=root.querySelector('.video-data .tik-video');" +
+                "if(!card)return JSON.stringify({state:'WAIT'});" +
+
+                "var captionEl=card.querySelector('.tik-left .thumbnail .content .clearfix h3');" +
+
+                "var buttons=Array.from(card.querySelectorAll('.dl-action a.tik-button-dl'));" +
+
+                "var hd=buttons.find(function(el){" +
+                "var t=(el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim().toLowerCase();" +
+                "return t==='unduh mp4 hd'||t==='download mp4 hd';" +
                 "});" +
-                "if(!target)return JSON.stringify({state:'WAIT'});" +
-                "var tr=target.getBoundingClientRect();" +
-                "function clean(s,n){s=(s||'').replace(/\\s+/g,' ').trim();return s.length>n?s.substring(0,n)+'...':s;}" +
-                "var ancestors=[];" +
-                "var p=target;" +
-                "for(var i=0;i<7&&p;i++,p=p.parentElement){" +
-                "ancestors.push({level:i,tag:p.tagName,id:p.id||'',className:(typeof p.className==='string'?p.className:'')," +
-                "text:clean(p.innerText||p.textContent||'',1800)," +
-                "images:p.querySelectorAll('img').length," +
-                "buttons:p.querySelectorAll('button,a,input[type=button],input[type=submit],[role=button]').length," +
-                "html:clean(p.outerHTML||'',12000)});" +
-                "}" +
-                "var nearby=[];" +
-                "var all=Array.from(document.querySelectorAll('h1,h2,h3,h4,p,span,div,section,article'));" +
-                "all.forEach(function(el){" +
-                "if(el===target||el.contains(target))return;" +
-                "var r=el.getBoundingClientRect();" +
-                "if(r.width<5||r.height<5)return;" +
-                "if(r.bottom<0||r.top>window.innerHeight)return;" +
-                "var t=clean(el.innerText||el.textContent||'',500);" +
-                "if(!t||t.length<2)return;" +
-                "var dist=Math.abs(r.bottom-tr.top);" +
-                "if(dist>650)return;" +
-                "nearby.push({tag:el.tagName,id:el.id||'',className:(typeof el.className==='string'?el.className:'')," +
-                "top:Math.round(r.top),left:Math.round(r.left),width:Math.round(r.width),height:Math.round(r.height)," +
-                "text:t,html:clean(el.outerHTML||'',4000),distance:Math.round(dist)});" +
+
+                "if(!hd)return JSON.stringify({state:'WAIT'});" +
+
+                "var caption=captionEl?(captionEl.innerText||captionEl.textContent||'').trim():'';" +
+
+                "return JSON.stringify({" +
+                "state:'FOUND'," +
+                "caption:caption," +
+                "hasCaption:!!captionEl" +
                 "});" +
-                "nearby.sort(function(a,b){return a.distance-b.distance;});" +
-                "nearby=nearby.slice(0,30);" +
-                "var imgs=Array.from(document.querySelectorAll('img')).map(function(img){" +
-                "var r=img.getBoundingClientRect();" +
-                "return {src:clean(img.currentSrc||img.src||'',500),alt:clean(img.alt||'',300),className:(typeof img.className==='string'?img.className:'')," +
-                "top:Math.round(r.top),left:Math.round(r.left),width:Math.round(r.width),height:Math.round(r.height)};" +
-                "}).filter(function(x){return x.width>30&&x.height>30;}).slice(0,20);" +
-                "return JSON.stringify({state:'FOUND',target:{tag:target.tagName,id:target.id||'',className:(typeof target.className==='string'?target.className:''),text:clean(target.innerText||target.textContent||target.value||'',500),html:clean(target.outerHTML||'',6000),top:Math.round(tr.top),left:Math.round(tr.left),width:Math.round(tr.width),height:Math.round(tr.height)},ancestors:ancestors,nearby:nearby,images:imgs});" +
+
                 "})()";
 
         webView.evaluateJavascript(js, result -> {
-            if (result != null && result.contains("\\\"state\\\":\\\"FOUND\\\"")) {
-                saveDebugDomFile(result);
-                webStatus.setText("WebView: DOM ditemukan → debug_dom.txt tersimpan");
-                setStatus(currentIndex, "Debug DOM tersimpan - belum download");
-                Toast.makeText(this, "Debug DOM tersimpan. Belum ada video yang didownload.", Toast.LENGTH_LONG).show();
+
+            if (result == null ||
+                    !result.contains("\\\"state\\\":\\\"FOUND\\\"")) {
+
+                webStatus.setText(
+                        "WebView: menunggu caption dan MP4 HD..."
+                );
+
+                handler.postDelayed(
+                        () -> findMp4HdButton(attempt + 1),
+                        500
+                );
+
+                return;
+            }
+
+            try {
+
+                Object parsed =
+                        new org.json.JSONTokener(result).nextValue();
+
+                String jsonText =
+                        parsed instanceof String
+                                ? (String) parsed
+                                : String.valueOf(parsed);
+
+                JSONObject obj =
+                        new JSONObject(jsonText);
+
+                currentCaption =
+                        obj.optString("caption", "").trim();
+
+                if (currentCaption.isEmpty()) {
+
+                    webStatus.setText(
+                            "WebView: caption kosong, MP4 HD tidak diproses"
+                    );
+
+                    setStatus(
+                            currentIndex,
+                            "Caption kosong"
+                    );
+
+                    processing = false;
+                    return;
+                }
+
+                webStatus.setText(
+                        "WebView: caption ditemukan → " +
+                                currentCaption
+                );
+
+                setStatus(
+                        currentIndex,
+                        "Caption ditemukan"
+                );
+
+                /*
+                 * Setelah caption sudah diamankan,
+                 * klik tombol MP4 HD yang tepat
+                 * di dalam kartu hasil yang sama.
+                 */
+
+                String clickJs =
+                        "(function(){" +
+
+                        "var card=document.querySelector('#download-result .video-data .tik-video');" +
+
+                        "if(!card)return 'WAIT';" +
+
+                        "var buttons=Array.from(card.querySelectorAll('.dl-action a.tik-button-dl'));" +
+
+                        "var hd=buttons.find(function(el){" +
+
+                        "var t=(el.innerText||el.textContent||'').replace(/\\s+/g,' ').trim().toLowerCase();" +
+
+                        "return t==='unduh mp4 hd'||t==='download mp4 hd';" +
+
+                        "});" +
+
+                        "if(!hd)return 'WAIT';" +
+
+                        "hd.click();" +
+
+                        "return 'CLICKED';" +
+
+                        "})()";
+
+                webView.evaluateJavascript(
+                        clickJs,
+                        clickResult -> {
+
+                            if (clickResult != null &&
+                                    clickResult.contains("CLICKED")) {
+
+                                submitClicked = true;
+
+                                webStatus.setText(
+                                        "WebView: MP4 HD dipilih, menunggu download..."
+                                );
+
+                                setStatus(
+                                        currentIndex,
+                                        "MP4 HD dipilih"
+                                );
+
+                            } else {
+
+                                webStatus.setText(
+                                        "WebView: tombol MP4 HD gagal diklik"
+                                );
+
+                                setStatus(
+                                        currentIndex,
+                                        "Gagal klik MP4 HD"
+                                );
+
+                                processing = false;
+                            }
+                        }
+                );
+
+            } catch (Exception e) {
+
+                webStatus.setText(
+                        "WebView: gagal membaca caption"
+                );
+
+                setStatus(
+                        currentIndex,
+                        "Gagal membaca caption"
+                );
+
                 processing = false;
-                submitClicked = false;
-            } else {
-                webStatus.setText("WebView: menunggu hasil video...");
-                handler.postDelayed(() -> findMp4HdButton(attempt + 1), 500);
             }
         });
     }
 
     private void saveDebugDomFile(String rawJavascriptResult) {
         try {
-            Object parsed = new org.json.JSONTokener(rawJavascriptResult).nextValue();
-            String jsonText = parsed instanceof String ? (String) parsed : String.valueOf(parsed);
-            JSONObject root = new JSONObject(jsonText);
 
-            StringBuilder out = new StringBuilder();
-            out.append("TikTokDownloadManager - DEBUG DOM\\n");
-            out.append("Waktu: ").append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(new java.util.Date())).append("\\n");
-            out.append("CATATAN: MP4 HD sengaja BELUM diklik. File ini hanya untuk mencari selector caption.\\n\\n");
+            Object parsed =
+                    new org.json.JSONTokener(
+                            rawJavascriptResult
+                    ).nextValue();
 
-            JSONObject target = root.optJSONObject("target");
+            String jsonText =
+                    parsed instanceof String
+                            ? (String) parsed
+                            : String.valueOf(parsed);
+
+            JSONObject root =
+                    new JSONObject(jsonText);
+
+            StringBuilder out =
+                    new StringBuilder();
+
+            out.append(
+                    "TikTokDownloadManager - DEBUG DOM\n"
+            );
+
+            out.append("Waktu: ")
+                    .append(
+                            new java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd HH:mm:ss",
+                                    Locale.US
+                            ).format(new java.util.Date())
+                    )
+                    .append("\n");
+
+            out.append(
+                    "CATATAN: MP4 HD sengaja BELUM diklik. File ini hanya untuk mencari selector caption.\n\n"
+            );
+
+            JSONObject target =
+                    root.optJSONObject("target");
+
             if (target != null) {
-                out.append("========== TARGET MP4 HD ==========\\n");
-                appendJsonField(out, "tag", target, "tag");
-                appendJsonField(out, "id", target, "id");
-                appendJsonField(out, "class", target, "className");
-                appendJsonField(out, "text", target, "text");
-                appendJsonField(out, "top", target, "top");
-                appendJsonField(out, "left", target, "left");
-                appendJsonField(out, "width", target, "width");
-                appendJsonField(out, "height", target, "height");
-                appendJsonField(out, "outerHTML", target, "html");
-                out.append("\\n");
+
+                out.append(
+                        "========== TARGET MP4 HD ==========\n"
+                );
+
+                appendJsonField(
+                        out,
+                        "tag",
+                        target,
+                        "tag"
+                );
+
+                appendJsonField(
+                        out,
+                        "id",
+                        target,
+                        "id"
+                );
+
+                appendJsonField(
+                        out,
+                        "class",
+                        target,
+                        "className"
+                );
+
+                appendJsonField(
+                        out,
+                        "text",
+                        target,
+                        "text"
+                );
+
+                appendJsonField(
+                        out,
+                        "top",
+                        target,
+                        "top"
+                );
+
+                appendJsonField(
+                        out,
+                        "left",
+                        target,
+                        "left"
+                );
+
+                appendJsonField(
+                        out,
+                        "width",
+                        target,
+                        "width"
+                );
+
+                appendJsonField(
+                        out,
+                        "height",
+                        target,
+                        "height"
+                );
+
+                appendJsonField(
+                        out,
+                        "outerHTML",
+                        target,
+                        "html"
+                );
+
+                out.append("\n");
             }
 
-            org.json.JSONArray ancestors = root.optJSONArray("ancestors");
+            org.json.JSONArray ancestors =
+                    root.optJSONArray("ancestors");
+
             if (ancestors != null) {
-                out.append("========== ANCESTORS MP4 HD ==========\\n");
-                for (int i = 0; i < ancestors.length(); i++) {
-                    JSONObject a = ancestors.optJSONObject(i);
+
+                out.append(
+                        "========== ANCESTORS MP4 HD ==========\n"
+                );
+
+                for (int i = 0;
+                     i < ancestors.length();
+                     i++) {
+
+                    JSONObject a =
+                            ancestors.optJSONObject(i);
+
                     if (a == null) continue;
-                    out.append("--- LEVEL ").append(a.optInt("level", i)).append(" ---\\n");
-                    out.append("tag: ").append(a.optString("tag", "")).append("\\n");
-                    out.append("id: ").append(a.optString("id", "")).append("\\n");
-                    out.append("class: ").append(a.optString("className", "")).append("\\n");
-                    out.append("images: ").append(a.optInt("images", 0)).append("\\n");
-                    out.append("buttons: ").append(a.optInt("buttons", 0)).append("\\n");
-                    out.append("text: ").append(a.optString("text", "")).append("\\n");
-                    out.append("outerHTML: ").append(a.optString("html", "")).append("\\n\\n");
+
+                    out.append("--- LEVEL ")
+                            .append(a.optInt("level", i))
+                            .append(" ---\n");
+
+                    out.append("tag: ")
+                            .append(a.optString("tag", ""))
+                            .append("\n");
+
+                    out.append("id: ")
+                            .append(a.optString("id", ""))
+                            .append("\n");
+
+                    out.append("class: ")
+                            .append(a.optString("className", ""))
+                            .append("\n");
+
+                    out.append("images: ")
+                            .append(a.optInt("images", 0))
+                            .append("\n");
+
+                    out.append("buttons: ")
+                            .append(a.optInt("buttons", 0))
+                            .append("\n");
+
+                    out.append("text: ")
+                            .append(a.optString("text", ""))
+                            .append("\n");
+
+                    out.append("outerHTML: ")
+                            .append(a.optString("html", ""))
+                            .append("\n\n");
                 }
             }
 
-            org.json.JSONArray nearby = root.optJSONArray("nearby");
+            org.json.JSONArray nearby =
+                    root.optJSONArray("nearby");
+
             if (nearby != null) {
-                out.append("========== NEARBY TEXT ELEMENTS ==========\\n");
-                for (int i = 0; i < nearby.length(); i++) {
-                    JSONObject n = nearby.optJSONObject(i);
+
+                out.append(
+                        "========== NEARBY TEXT ELEMENTS ==========\n"
+                );
+
+                for (int i = 0;
+                     i < nearby.length();
+                     i++) {
+
+                    JSONObject n =
+                            nearby.optJSONObject(i);
+
                     if (n == null) continue;
-                    out.append("--- ITEM ").append(i + 1).append(" / distance ").append(n.optInt("distance", -1)).append(" ---\\n");
-                    out.append("tag: ").append(n.optString("tag", "")).append("\\n");
-                    out.append("id: ").append(n.optString("id", "")).append("\\n");
-                    out.append("class: ").append(n.optString("className", "")).append("\\n");
-                    out.append("position: ").append(n.optInt("top", 0)).append(", ").append(n.optInt("left", 0)).append("\\n");
-                    out.append("size: ").append(n.optInt("width", 0)).append("x").append(n.optInt("height", 0)).append("\\n");
-                    out.append("text: ").append(n.optString("text", "")).append("\\n");
-                    out.append("outerHTML: ").append(n.optString("html", "")).append("\\n\\n");
+
+                    out.append("--- ITEM ")
+                            .append(i + 1)
+                            .append(" / distance ")
+                            .append(n.optInt("distance", -1))
+                            .append(" ---\n");
+
+                    out.append("tag: ")
+                            .append(n.optString("tag", ""))
+                            .append("\n");
+
+                    out.append("id: ")
+                            .append(n.optString("id", ""))
+                            .append("\n");
+
+                    out.append("class: ")
+                            .append(n.optString("className", ""))
+                            .append("\n");
+
+                    out.append("position: ")
+                            .append(n.optInt("top", 0))
+                            .append(", ")
+                            .append(n.optInt("left", 0))
+                            .append("\n");
+
+                    out.append("size: ")
+                            .append(n.optInt("width", 0))
+                            .append("x")
+                            .append(n.optInt("height", 0))
+                            .append("\n");
+
+                    out.append("text: ")
+                            .append(n.optString("text", ""))
+                            .append("\n");
+
+                    out.append("outerHTML: ")
+                            .append(n.optString("html", ""))
+                            .append("\n\n");
                 }
             }
 
-            org.json.JSONArray images = root.optJSONArray("images");
+            org.json.JSONArray images =
+                    root.optJSONArray("images");
+
             if (images != null) {
-                out.append("========== VISIBLE IMAGES ==========\\n");
-                for (int i = 0; i < images.length(); i++) {
-                    JSONObject im = images.optJSONObject(i);
+
+                out.append(
+                        "========== VISIBLE IMAGES ==========\n"
+                );
+
+                for (int i = 0;
+                     i < images.length();
+                     i++) {
+
+                    JSONObject im =
+                            images.optJSONObject(i);
+
                     if (im == null) continue;
-                    out.append("--- IMAGE ").append(i + 1).append(" ---\\n");
-                    out.append("src: ").append(im.optString("src", "")).append("\\n");
-                    out.append("alt: ").append(im.optString("alt", "")).append("\\n");
-                    out.append("class: ").append(im.optString("className", "")).append("\\n");
-                    out.append("position: ").append(im.optInt("top", 0)).append(", ").append(im.optInt("left", 0)).append("\\n");
-                    out.append("size: ").append(im.optInt("width", 0)).append("x").append(im.optInt("height", 0)).append("\\n\\n");
+
+                    out.append("--- IMAGE ")
+                            .append(i + 1)
+                            .append(" ---\n");
+
+                    out.append("src: ")
+                            .append(im.optString("src", ""))
+                            .append("\n");
+
+                    out.append("alt: ")
+                            .append(im.optString("alt", ""))
+                            .append("\n");
+
+                    out.append("class: ")
+                            .append(im.optString("className", ""))
+                            .append("\n");
+
+                    out.append("position: ")
+                            .append(im.optInt("top", 0))
+                            .append(", ")
+                            .append(im.optInt("left", 0))
+                            .append("\n");
+
+                    out.append("size: ")
+                            .append(im.optInt("width", 0))
+                            .append("x")
+                            .append(im.optInt("height", 0))
+                            .append("\n\n");
                 }
             }
 
-            writeTextToDownloads("debug_dom.txt", out.toString());
+            writeTextToDownloads(
+                    "debug_dom.txt",
+                    out.toString()
+            );
+
         } catch (Exception e) {
-            writeTextToDownloads("debug_dom_error.txt", "Gagal membaca hasil DOM debug: " + e.getMessage() + "\\n\\nRAW:\\n" + rawJavascriptResult);
+
+            writeTextToDownloads(
+                    "debug_dom_error.txt",
+                    "Gagal membaca hasil DOM debug: " +
+                            e.getMessage() +
+                            "\n\nRAW:\n" +
+                            rawJavascriptResult
+            );
         }
     }
 
-    private void appendJsonField(StringBuilder out, String label, JSONObject obj, String key) {
-        out.append(label).append(": ").append(obj.optString(key, "")).append("\\n");
+    private void appendJsonField(
+            StringBuilder out,
+            String label,
+            JSONObject obj,
+            String key) {
+
+        out.append(label)
+                .append(": ")
+                .append(obj.optString(key, ""))
+                .append("\n");
     }
 
-    private void writeTextToDownloads(String filename, String content) {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                android.content.ContentValues values = new android.content.ContentValues();
-                values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, filename);
-                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain");
-                values.put(android.provider.MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/TikTokDownloadManager");
-                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
+    private void writeTextToDownloads(
+            String filename,
+            String content) {
 
-                Uri uri = getContentResolver().insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+        try {
+
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.Q) {
+
+                android.content.ContentValues values =
+                        new android.content.ContentValues();
+
+                values.put(
+                        android.provider.MediaStore.Downloads.DISPLAY_NAME,
+                        filename
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads.MIME_TYPE,
+                        "text/plain"
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads.RELATIVE_PATH,
+                        Environment.DIRECTORY_DOWNLOADS +
+                                "/TikTokDownloadManager"
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads.IS_PENDING,
+                        1
+                );
+
+                Uri uri =
+                        getContentResolver().insert(
+                                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                values
+                        );
 
                 if (uri != null) {
-                    try (java.io.OutputStream stream = getContentResolver().openOutputStream(uri)) {
-                        if (stream != null) stream.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+                    try (
+                            java.io.OutputStream stream =
+                                    getContentResolver()
+                                            .openOutputStream(uri)
+                    ) {
+
+                        if (stream != null) {
+
+                            stream.write(
+                                    content.getBytes(
+                                            java.nio.charset.StandardCharsets.UTF_8
+                                    )
+                            );
+                        }
                     }
 
                     values.clear();
-                    values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
-                    getContentResolver().update(uri, values, null, null);
+
+                    values.put(
+                            android.provider.MediaStore.Downloads.IS_PENDING,
+                            0
+                    );
+
+                    getContentResolver().update(
+                            uri,
+                            values,
+                            null,
+                            null
+                    );
                 }
+
             } else {
-                java.io.File dir = new java.io.File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "TikTokDownloadManager");
-                if (!dir.exists()) dir.mkdirs();
 
-                java.io.File file = new java.io.File(dir, filename);
+                java.io.File dir =
+                        new java.io.File(
+                                Environment.getExternalStoragePublicDirectory(
+                                        Environment.DIRECTORY_DOWNLOADS
+                                ),
+                                "TikTokDownloadManager"
+                        );
 
-                try (java.io.FileOutputStream stream = new java.io.FileOutputStream(file)) {
-                    stream.write(content.getBytes("UTF-8"));
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+
+                java.io.File file =
+                        new java.io.File(
+                                dir,
+                                filename
+                        );
+
+                try (
+                        java.io.FileOutputStream stream =
+                                new java.io.FileOutputStream(file)
+                ) {
+
+                    stream.write(
+                            content.getBytes("UTF-8")
+                    );
                 }
             }
+
         } catch (Exception e) {
-            webStatus.setText("WebView: gagal menyimpan " + filename);
+
+            webStatus.setText(
+                    "WebView: gagal menyimpan " +
+                            filename
+            );
         }
     }
 
     private void clickMp4HdButton() {
-        String js = "(function(){" +
+
+        String js =
+                "(function(){" +
                 "var elements=Array.from(document.querySelectorAll('button,a,input[type=button],input[type=submit],[role=button]'));" +
                 "var target=elements.find(function(el){" +
                 "var t=(el.innerText||el.textContent||el.value||el.getAttribute('aria-label')||'').replace(/\\s+/g,' ').trim().toLowerCase();" +
                 "return t.includes('unduh mp4 hd')||t.includes('download mp4 hd');" +
                 "});" +
-                "if(!target)return 'WAIT'; target.click(); return 'CLICKED';" +
+                "if(!target)return 'WAIT';" +
+                "target.click();" +
+                "return 'CLICKED';" +
                 "})()";
 
-        webView.evaluateJavascript(js, result -> {
-            if (result != null && result.contains("CLICKED")) {
-                webStatus.setText("WebView: MP4 HD dipilih, menunggu download...");
-                setStatus(currentIndex, "MP4 HD dipilih");
-            } else {
-                webStatus.setText("WebView: tombol MP4 HD hilang, mencoba lagi...");
-                handler.postDelayed(() -> findMp4HdButton(0), 500);
-            }
-        });
+        webView.evaluateJavascript(
+                js,
+                result -> {
+
+                    if (result != null &&
+                            result.contains("CLICKED")) {
+
+                        webStatus.setText(
+                                "WebView: MP4 HD dipilih, menunggu download..."
+                        );
+
+                        setStatus(
+                                currentIndex,
+                                "MP4 HD dipilih"
+                        );
+
+                    } else {
+
+                        webStatus.setText(
+                                "WebView: tombol MP4 HD hilang, mencoba lagi..."
+                        );
+
+                        handler.postDelayed(
+                                () -> findMp4HdButton(0),
+                                500
+                        );
+                    }
+                }
+        );
     }
 
-    private void handleWebDownload(String url, String userAgent, String contentDisposition, String mimeType, long contentLength) {
-        if (!processing || currentIndex < 0 || downloadStarted) return;
-        if (url == null || url.trim().isEmpty()) return;
+    private void handleWebDownload(
+            String url,
+            String userAgent,
+            String contentDisposition,
+            String mimeType,
+            long contentLength) {
 
-        String normalizedUrl = url.trim();
-        if (handledDownloadUrls.contains(normalizedUrl)) return;
-
-        String lowerMime = mimeType == null ? "" : mimeType.toLowerCase(Locale.US);
-        String lowerUrl = normalizedUrl.toLowerCase(Locale.US);
-        String lowerDisposition = contentDisposition == null ? "" : contentDisposition.toLowerCase(Locale.US);
-
-        boolean looksLikeHtml = lowerMime.contains("text/html") || lowerMime.contains("application/xhtml");
-        if (looksLikeHtml) {
-            webStatus.setText("WebView: download ditolak karena bukan video");
+        if (!processing ||
+                currentIndex < 0 ||
+                downloadStarted) {
             return;
         }
 
-        boolean isBin = lowerMime.contains("application/octet-stream") ||
-                lowerDisposition.contains(".bin") ||
-                lowerUrl.matches(".*\\.bin(?:[?#].*)?$");
+        if (url == null ||
+                url.trim().isEmpty()) {
+            return;
+        }
 
-        boolean looksLikeVideo = lowerMime.startsWith("video/") ||
+        String normalizedUrl = url.trim();
+
+        if (handledDownloadUrls.contains(normalizedUrl)) {
+            return;
+        }
+
+        String lowerMime =
+                mimeType == null
+                        ? ""
+                        : mimeType.toLowerCase(Locale.US);
+
+        String lowerUrl =
+                normalizedUrl.toLowerCase(Locale.US);
+
+        String lowerDisposition =
+                contentDisposition == null
+                        ? ""
+                        : contentDisposition.toLowerCase(Locale.US);
+
+        boolean looksLikeHtml =
+                lowerMime.contains("text/html") ||
+                        lowerMime.contains("application/xhtml");
+
+        if (looksLikeHtml) {
+
+            webStatus.setText(
+                    "WebView: download ditolak karena bukan video"
+            );
+
+            return;
+        }
+
+        boolean isBin =
+                lowerMime.contains(
+                        "application/octet-stream"
+                ) ||
+                lowerDisposition.contains(".bin") ||
+                lowerUrl.matches(
+                        ".*\\.bin(?:[?#].*)?$"
+                );
+
+        boolean looksLikeVideo =
+                lowerMime.startsWith("video/") ||
                 lowerMime.contains("mp4") ||
                 lowerDisposition.contains(".mp4") ||
                 lowerUrl.contains(".mp4");
 
         /*
-         * SaveTikTok pada sebagian download MP4 HD mengirim data video
-         * sebagai application/octet-stream dengan nama/URL .bin.
-         * Karena event ini datang setelah tombol MP4 HD kita klik, .bin
-         * diperlakukan sebagai kandidat video dan disimpan paksa sebagai
-         * video.mp4.
+         * SaveTikTok pada sebagian download MP4 HD
+         * mengirim data video sebagai
+         * application/octet-stream dengan nama/URL .bin.
+         *
+         * Karena event ini datang setelah tombol MP4 HD
+         * kita klik, .bin diperlakukan sebagai kandidat video
+         * dan disimpan paksa sebagai video.mp4.
          */
+
         if (isBin && submitClicked) {
             looksLikeVideo = true;
         }
 
         if (!looksLikeVideo) {
-            webStatus.setText("WebView: format download bukan MP4");
+
+            webStatus.setText(
+                    "WebView: format download bukan MP4"
+            );
+
             return;
         }
 
         handledDownloadUrls.add(normalizedUrl);
+
         if (handledDownloadUrls.size() > 20) {
-            String first = handledDownloadUrls.iterator().next();
+
+            String first =
+                    handledDownloadUrls
+                            .iterator()
+                            .next();
+
             handledDownloadUrls.remove(first);
         }
 
         downloadStarted = true;
-        webStatus.setText("WebView: file MP4 ditemukan, memulai download...");
-        enqueueDownload(normalizedUrl, userAgent, mimeType, contentDisposition);
+
+        webStatus.setText(
+                "WebView: file MP4 ditemukan, memulai download..."
+        );
+
+        enqueueDownload(
+                normalizedUrl,
+                userAgent,
+                mimeType,
+                contentDisposition
+        );
     }
 
-    private void enqueueDownload(String url, String userAgent, String mimeType, String contentDisposition) {
+    private void enqueueDownload(
+            String url,
+            String userAgent,
+            String mimeType,
+            String contentDisposition) {
+
         try {
-            DownloadManager manager = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
 
-            request.setTitle("TikTok " + (currentIndex + 1));
-            request.setDescription("TikTok Download Manager");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setMimeType("video/mp4");
+            DownloadManager manager =
+                    (DownloadManager)
+                            getSystemService(
+                                    Context.DOWNLOAD_SERVICE
+                            );
 
-            if (userAgent != null && !userAgent.isEmpty()) request.addRequestHeader("User-Agent", userAgent);
+            DownloadManager.Request request =
+                    new DownloadManager.Request(
+                            Uri.parse(url)
+                    );
 
-            String cookie = CookieManager.getInstance().getCookie(url);
-            if (cookie != null && !cookie.isEmpty()) request.addRequestHeader("Cookie", cookie);
+            request.setTitle(
+                    "TikTok " +
+                            (currentIndex + 1)
+            );
 
-            request.addRequestHeader("Referer", SAVE_URL);
+            request.setDescription(
+                    "TikTok Download Manager"
+            );
 
-            // Selalu gunakan nama dan folder yang kita tentukan. Jangan gunakan nama .bin dari server.
-            String folder = "TikTokDownloadManager/" + String.format(Locale.US, "%03d", currentIndex + 1);
+            request.setNotificationVisibility(
+                    DownloadManager.Request
+                            .VISIBILITY_VISIBLE_NOTIFY_COMPLETED
+            );
+
+            request.setMimeType(
+                    "video/mp4"
+            );
+
+            if (userAgent != null &&
+                    !userAgent.isEmpty()) {
+
+                request.addRequestHeader(
+                        "User-Agent",
+                        userAgent
+                );
+            }
+
+            String cookie =
+                    CookieManager
+                            .getInstance()
+                            .getCookie(url);
+
+            if (cookie != null &&
+                    !cookie.isEmpty()) {
+
+                request.addRequestHeader(
+                        "Cookie",
+                        cookie
+                );
+            }
+
+            request.addRequestHeader(
+                    "Referer",
+                    SAVE_URL
+            );
+
+            /*
+             * Folder:
+             *
+             * Download/TikTokDownloadManager/001/
+             * Download/TikTokDownloadManager/002/
+             * dst.
+             */
+
+            String folder =
+                    "TikTokDownloadManager/" +
+                            String.format(
+                                    Locale.US,
+                                    "%03d",
+                                    currentIndex + 1
+                            );
+
             String filename = "video.mp4";
 
             request.setDestinationInExternalPublicDir(
@@ -616,96 +1268,198 @@ public class MainActivity extends Activity {
                     folder + "/" + filename
             );
 
-            currentDownloadId = manager.enqueue(request);
+            currentDownloadId =
+                    manager.enqueue(request);
 
-            int completedIndex = currentIndex;
-            setStatus(completedIndex, "Download dimulai");
+            int completedIndex =
+                    currentIndex;
+
+            setStatus(
+                    completedIndex,
+                    "Download dimulai"
+            );
 
             webStatus.setText(
                     "WebView: download dimulai → Download/TikTokDownloadManager/" +
-                    String.format(Locale.US, "%03d", completedIndex + 1)
+                            String.format(
+                                    Locale.US,
+                                    "%03d",
+                                    completedIndex + 1
+                            )
             );
 
-            progress.setText("Progress: " + (completedIndex + 1) + " / " + urls.size());
+            progress.setText(
+                    "Progress: " +
+                            (completedIndex + 1) +
+                            " / " +
+                            urls.size()
+            );
 
-            saveCaptionFile(completedIndex);
+            saveCaptionFile(
+                    completedIndex
+            );
 
             Toast.makeText(
                     this,
-                    "Download dimulai: " + folder + "/video.mp4",
+                    "Download dimulai: " +
+                            folder +
+                            "/video.mp4",
                     Toast.LENGTH_SHORT
             ).show();
 
-            waitForDownloadCompletion(manager, currentDownloadId, completedIndex, 0);
+            waitForDownloadCompletion(
+                    manager,
+                    currentDownloadId,
+                    completedIndex,
+                    0
+            );
 
         } catch (Exception e) {
+
             downloadStarted = false;
             processing = false;
-            setStatus(currentIndex, "Gagal memulai download");
-            webStatus.setText("WebView: gagal download - " + e.getMessage());
+
+            setStatus(
+                    currentIndex,
+                    "Gagal memulai download"
+            );
+
+            webStatus.setText(
+                    "WebView: gagal download - " +
+                            e.getMessage()
+            );
         }
     }
 
     private void saveCaptionFile(int index) {
-        // DownloadManager hanya menangani file video. Caption ditulis ke folder yang sama.
-        // Pada Android modern, direktori Download publik dapat ditulis melalui MediaStore/SAF;
-        // untuk menjaga kompatibilitas project lama, gunakan MediaStore pada Android 10+.
-        try {
-            String caption = currentCaption == null ? "" : currentCaption.trim();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                android.content.ContentValues values = new android.content.ContentValues();
-                values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME, "caption.txt");
-                values.put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain");
+        try {
+
+            String caption =
+                    currentCaption == null
+                            ? ""
+                            : currentCaption.trim();
+
+            if (Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.Q) {
+
+                android.content.ContentValues values =
+                        new android.content.ContentValues();
+
+                values.put(
+                        android.provider.MediaStore.Downloads.DISPLAY_NAME,
+                        "caption.txt"
+                );
+
+                values.put(
+                        android.provider.MediaStore.Downloads.MIME_TYPE,
+                        "text/plain"
+                );
+
                 values.put(
                         android.provider.MediaStore.Downloads.RELATIVE_PATH,
                         Environment.DIRECTORY_DOWNLOADS +
                                 "/TikTokDownloadManager/" +
-                                String.format(Locale.US, "%03d", index + 1)
+                                String.format(
+                                        Locale.US,
+                                        "%03d",
+                                        index + 1
+                                )
                 );
-                values.put(android.provider.MediaStore.Downloads.IS_PENDING, 1);
 
-                Uri uri = getContentResolver().insert(
-                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                        values
+                values.put(
+                        android.provider.MediaStore.Downloads.IS_PENDING,
+                        1
                 );
+
+                Uri uri =
+                        getContentResolver().insert(
+                                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                values
+                        );
 
                 if (uri != null) {
-                    try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+
+                    try (
+                            java.io.OutputStream out =
+                                    getContentResolver()
+                                            .openOutputStream(uri)
+                    ) {
+
                         if (out != null) {
+
                             out.write(
-                                    (caption.isEmpty() ? "Caption tidak ditemukan." : caption)
-                                            .getBytes(java.nio.charset.StandardCharsets.UTF_8)
+                                    (
+                                            caption.isEmpty()
+                                                    ? "Caption tidak ditemukan."
+                                                    : caption
+                                    ).getBytes(
+                                            java.nio.charset.StandardCharsets.UTF_8
+                                    )
                             );
                         }
                     }
 
                     values.clear();
-                    values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0);
-                    getContentResolver().update(uri, values, null, null);
+
+                    values.put(
+                            android.provider.MediaStore.Downloads.IS_PENDING,
+                            0
+                    );
+
+                    getContentResolver().update(
+                            uri,
+                            values,
+                            null,
+                            null
+                    );
                 }
 
             } else {
-                java.io.File dir = new java.io.File(
-                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                        "TikTokDownloadManager/" +
-                                String.format(Locale.US, "%03d", index + 1)
-                );
 
-                if (!dir.exists()) dir.mkdirs();
+                java.io.File dir =
+                        new java.io.File(
+                                Environment.getExternalStoragePublicDirectory(
+                                        Environment.DIRECTORY_DOWNLOADS
+                                ),
+                                "TikTokDownloadManager/" +
+                                        String.format(
+                                                Locale.US,
+                                                "%03d",
+                                                index + 1
+                                        )
+                        );
 
-                java.io.File file = new java.io.File(dir, "caption.txt");
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
 
-                try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                java.io.File file =
+                        new java.io.File(
+                                dir,
+                                "caption.txt"
+                        );
+
+                try (
+                        java.io.FileOutputStream out =
+                                new java.io.FileOutputStream(file)
+                ) {
+
                     out.write(
-                            (caption.isEmpty() ? "Caption tidak ditemukan." : caption)
-                                    .getBytes("UTF-8")
+                            (
+                                    caption.isEmpty()
+                                            ? "Caption tidak ditemukan."
+                                            : caption
+                            ).getBytes("UTF-8")
                     );
                 }
             }
 
         } catch (Exception e) {
-            webStatus.setText("WebView: video diproses, caption gagal disimpan");
+
+            webStatus.setText(
+                    "WebView: video diproses, caption gagal disimpan"
+            );
         }
     }
 
@@ -713,88 +1467,137 @@ public class MainActivity extends Activity {
             DownloadManager manager,
             long downloadId,
             int completedIndex,
-            int attempt
-    ) {
+            int attempt) {
+
         if (attempt >= 120) {
-            setStatus(completedIndex, "Download berjalan");
-            handler.postDelayed(() -> finishCurrentAndNext(completedIndex), 1000);
+
+            setStatus(
+                    completedIndex,
+                    "Download berjalan"
+            );
+
+            handler.postDelayed(
+                    () -> finishCurrentAndNext(
+                            completedIndex
+                    ),
+                    1000
+            );
+
             return;
         }
 
-        DownloadManager.Query query = new DownloadManager.Query();
+        DownloadManager.Query query =
+                new DownloadManager.Query();
+
         query.setFilterById(downloadId);
 
-        try (android.database.Cursor cursor = manager.query(query)) {
+        try (
+                android.database.Cursor cursor =
+                        manager.query(query)
+        ) {
 
-            if (cursor != null && cursor.moveToFirst()) {
-                int status = cursor.getInt(
-                        cursor.getColumnIndexOrThrow(
-                                DownloadManager.COLUMN_STATUS
-                        )
-                );
+            if (cursor != null &&
+                    cursor.moveToFirst()) {
 
-                if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                    setStatus(completedIndex, "Selesai");
-                    webStatus.setText("WebView: download selesai");
+                int status =
+                        cursor.getInt(
+                                cursor.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_STATUS
+                                )
+                        );
+
+                if (status ==
+                        DownloadManager.STATUS_SUCCESSFUL) {
+
+                    setStatus(
+                            completedIndex,
+                            "Selesai"
+                    );
+
+                    webStatus.setText(
+                            "WebView: download selesai"
+                    );
 
                     handler.postDelayed(
-                            () -> finishCurrentAndNext(completedIndex),
+                            () -> finishCurrentAndNext(
+                                    completedIndex
+                            ),
                             700
                     );
 
                     return;
                 }
 
-                if (status == DownloadManager.STATUS_FAILED) {
-                    int reason = cursor.getInt(
-                            cursor.getColumnIndexOrThrow(
-                                    DownloadManager.COLUMN_REASON
-                            )
-                    );
+                if (status ==
+                        DownloadManager.STATUS_FAILED) {
+
+                    int reason =
+                            cursor.getInt(
+                                    cursor.getColumnIndexOrThrow(
+                                            DownloadManager.COLUMN_REASON
+                                    )
+                            );
 
                     downloadStarted = false;
                     processing = false;
 
                     setStatus(
                             completedIndex,
-                            "Gagal download (" + reason + ")"
-                    );
-
-                    webStatus.setText("WebView: download gagal");
-                    return;
-                }
-
-                int downloaded = cursor.getInt(
-                        cursor.getColumnIndexOrThrow(
-                                DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR
-                        )
-                );
-
-                int total = cursor.getInt(
-                        cursor.getColumnIndexOrThrow(
-                                DownloadManager.COLUMN_TOTAL_SIZE_BYTES
-                        )
-                );
-
-                if (total > 0) {
-                    int percent = (int) Math.max(
-                            0,
-                            Math.min(
-                                    100,
-                                    (downloaded * 100L) / total
-                            )
-                    );
-
-                    setStatus(
-                            completedIndex,
-                            "Download " + percent + "%"
+                            "Gagal download (" +
+                                    reason +
+                                    ")"
                     );
 
                     webStatus.setText(
-                            "WebView: download " + percent + "%"
+                            "WebView: download gagal"
+                    );
+
+                    return;
+                }
+
+                int downloaded =
+                        cursor.getInt(
+                                cursor.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR
+                                )
+                        );
+
+                int total =
+                        cursor.getInt(
+                                cursor.getColumnIndexOrThrow(
+                                        DownloadManager.COLUMN_TOTAL_SIZE_BYTES
+                                )
+                        );
+
+                if (total > 0) {
+
+                    int percent =
+                            (int) Math.max(
+                                    0,
+                                    Math.min(
+                                            100,
+                                            (
+                                                    downloaded *
+                                                            100L
+                                            ) / total
+                                    )
+                            );
+
+                    setStatus(
+                            completedIndex,
+                            "Download " +
+                                    percent +
+                                    "%"
+                    );
+
+                    webStatus.setText(
+                            "WebView: download " +
+                                    percent +
+                                    "%"
                     );
 
                 } else {
+
                     setStatus(
                             completedIndex,
                             "Download berjalan"
@@ -816,22 +1619,35 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void finishCurrentAndNext(int completedIndex) {
+    private void finishCurrentAndNext(
+            int completedIndex) {
+
         processing = false;
         submitClicked = false;
         downloadStarted = false;
         currentDownloadId = -1L;
         currentCaption = "";
 
-        int next = completedIndex + 1;
+        int next =
+                completedIndex + 1;
 
         if (next < urls.size()) {
+
             startSingle(next);
+
         } else {
+
             currentIndex = -1;
-            webStatus.setText("WebView: semua antrean selesai");
+
+            webStatus.setText(
+                    "WebView: semua antrean selesai"
+            );
+
             progress.setText(
-                    "Progress: " + urls.size() + " / " + urls.size()
+                    "Progress: " +
+                            urls.size() +
+                            " / " +
+                            urls.size()
             );
 
             Toast.makeText(
@@ -843,61 +1659,112 @@ public class MainActivity extends Activity {
     }
 
     private void clearQueue() {
+
         handler.removeCallbacksAndMessages(null);
 
         urls.clear();
+
         currentIndex = -1;
         processing = false;
         submitClicked = false;
         downloadStarted = false;
         currentCaption = "";
         currentDownloadId = -1L;
+
         handledDownloadUrls.clear();
 
         queue.removeAllViews();
+
         input.setText("");
 
-        progress.setText("Progress: 0 / 0");
-        webStatus.setText("WebView: siap");
+        progress.setText(
+                "Progress: 0 / 0"
+        );
+
+        webStatus.setText(
+                "WebView: siap"
+        );
 
         webView.stopLoading();
         webView.setVisibility(View.GONE);
     }
 
-    private void setStatus(int index, String value) {
-        if (index < 0 || index >= queue.getChildCount()) return;
+    private void setStatus(
+            int index,
+            String value) {
 
-        View card = queue.getChildAt(index);
-        Object tag = card.getTag();
+        if (index < 0 ||
+                index >= queue.getChildCount()) {
+            return;
+        }
+
+        View card =
+                queue.getChildAt(index);
+
+        Object tag =
+                card.getTag();
 
         if (tag instanceof TextView) {
+
             ((TextView) tag).setText(
-                    "#" + (index + 1) + "  " + value
+                    "#" +
+                            (index + 1) +
+                            "  " +
+                            value
             );
         }
     }
 
     private void updateProgress() {
-        progress.setText("Progress: 0 / " + urls.size());
+
+        progress.setText(
+                "Progress: 0 / " +
+                        urls.size()
+        );
     }
 
-    private TextView text(String value, float size) {
-        TextView view = new TextView(this);
+    private TextView text(
+            String value,
+            float size) {
+
+        TextView view =
+                new TextView(this);
+
         view.setText(value);
         view.setTextSize(size);
-        view.setTextColor(Color.rgb(17, 24, 39));
-        view.setPadding(0, 9, 0, 9);
+
+        view.setTextColor(
+                Color.rgb(
+                        17,
+                        24,
+                        39
+                )
+        );
+
+        view.setPadding(
+                0,
+                9,
+                0,
+                9
+        );
+
         return view;
     }
 
-    private Button button(String value) {
-        Button button = new Button(this);
+    private Button button(
+            String value) {
+
+        Button button =
+                new Button(this);
+
         button.setText(value);
         button.setAllCaps(false);
+
         return button;
     }
 
     private void requestStorageIfNeeded() {
+
         if (android.os.Build.VERSION.SDK_INT >= 23 &&
                 android.os.Build.VERSION.SDK_INT <= 28 &&
                 checkSelfPermission(
@@ -915,9 +1782,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+
         handler.removeCallbacksAndMessages(null);
 
         if (webView != null) {
+
             webView.stopLoading();
             webView.destroy();
         }
@@ -927,6 +1796,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+
         if (webView != null &&
                 webView.getVisibility() == View.VISIBLE &&
                 webView.canGoBack()) {
@@ -934,6 +1804,7 @@ public class MainActivity extends Activity {
             webView.goBack();
 
         } else {
+
             super.onBackPressed();
         }
     }
