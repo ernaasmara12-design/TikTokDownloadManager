@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -45,19 +44,19 @@ public class MainActivity extends android.app.Activity {
             "https://savetiktok.to/id";
 
     // ============================================================
-    // WEBVIEW
+    // HANDLER
     // ============================================================
-
-    private WebView webView;
 
     private final android.os.Handler handler =
             new android.os.Handler();
 
     // ============================================================
-    // INPUT
+    // WEBVIEW
     // ============================================================
 
-    private EditText input;
+    private WebView webView;
+
+    private boolean pageReady = false;
 
     // ============================================================
     // QUEUE
@@ -72,13 +71,15 @@ public class MainActivity extends android.app.Activity {
     private String currentCaption = "";
 
     // ============================================================
-    // STATE
+    // PROCESS STATE
     // ============================================================
 
-    private boolean pageReady = false;
     private boolean processing = false;
+
     private boolean submitClicked = false;
+
     private boolean mp4HdClicked = false;
+
     private boolean waitingForDownload = false;
 
     private long currentDownloadId = -1;
@@ -89,7 +90,7 @@ public class MainActivity extends android.app.Activity {
 
     private FrameLayout pageContainer;
 
-    private View tabPage;
+    private View downloadPage;
     private View progressPage;
     private View finishedPage;
 
@@ -99,19 +100,13 @@ public class MainActivity extends android.app.Activity {
     private TextView emptyProgressText;
     private TextView emptyFinishedText;
 
-    private TextView navTab;
+    private TextView navDownload;
     private TextView navProgress;
     private TextView navFinished;
 
     private Button startAllButton;
 
     private int currentPage = 0;
-
-    // ============================================================
-    // DOWNLOAD MANAGER
-    // ============================================================
-
-    private DownloadManager downloadManager;
 
     // ============================================================
     // DOWNLOAD RECEIVER
@@ -155,12 +150,6 @@ public class MainActivity extends android.app.Activity {
 
         super.onCreate(savedInstanceState);
 
-        downloadManager =
-                (DownloadManager)
-                        getSystemService(
-                                DOWNLOAD_SERVICE
-                        );
-
         buildUi();
 
         createWebView();
@@ -183,36 +172,45 @@ public class MainActivity extends android.app.Activity {
                 webView.getSettings();
 
         settings.setJavaScriptEnabled(true);
+
         settings.setDomStorageEnabled(true);
+
         settings.setDatabaseEnabled(true);
 
         settings.setAllowFileAccess(true);
+
         settings.setAllowContentAccess(true);
 
         settings.setSupportMultipleWindows(false);
+
         settings.setJavaScriptCanOpenWindowsAutomatically(
                 true
         );
 
         settings.setUserAgentString(
-                "Mozilla/5.0 (Linux; Android 12; Mobile) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/120.0 Mobile Safari/537.36"
+                "Mozilla/5.0 (Linux; Android 12; Mobile) "
+                        + "AppleWebKit/537.36 "
+                        + "(KHTML, like Gecko) "
+                        + "Chrome/120.0 Mobile Safari/537.36"
         );
 
-        CookieManager cookies =
+        CookieManager cookieManager =
                 CookieManager.getInstance();
 
-        cookies.setAcceptCookie(true);
+        cookieManager.setAcceptCookie(true);
 
         if (Build.VERSION.SDK_INT >=
                 Build.VERSION_CODES.LOLLIPOP) {
 
-            cookies.setAcceptThirdPartyCookies(
+            cookieManager.setAcceptThirdPartyCookies(
                     webView,
                     true
             );
         }
+
+        // --------------------------------------------------------
+        // PAGE FINISHED
+        // --------------------------------------------------------
 
         webView.setWebViewClient(
                 new WebViewClient() {
@@ -228,16 +226,11 @@ public class MainActivity extends android.app.Activity {
                                 url
                         );
 
-                        if (!url.contains(
-                                "savetiktok.to"
-                        )) {
-                            return;
-                        }
-
                         pageReady = true;
 
-                        // Jika sedang memproses video,
-                        // mulai inject setelah halaman siap.
+                        // Jangan langsung inject.
+                        // Beri waktu halaman SaveTikTok
+                        // menyelesaikan JavaScript-nya.
                         if (processing) {
 
                             handler.postDelayed(
@@ -249,12 +242,16 @@ public class MainActivity extends android.app.Activity {
                                             injectTikTokUrl();
                                         }
                                     },
-                                    1200
+                                    1500
                             );
                         }
                     }
                 }
         );
+
+        // --------------------------------------------------------
+        // DOWNLOAD LISTENER
+        // --------------------------------------------------------
 
         webView.setDownloadListener(
                 new DownloadListener() {
@@ -279,13 +276,13 @@ public class MainActivity extends android.app.Activity {
         );
 
         // --------------------------------------------------------
-        // WEBVIEW DISEMBUNYIKAN
+        // HIDDEN WEBVIEW
         // --------------------------------------------------------
 
-        FrameLayout hidden =
+        FrameLayout hiddenContainer =
                 new FrameLayout(this);
 
-        hidden.addView(
+        hiddenContainer.addView(
                 webView,
                 new FrameLayout.LayoutParams(
                         1,
@@ -294,7 +291,7 @@ public class MainActivity extends android.app.Activity {
         );
 
         addContentView(
-                hidden,
+                hiddenContainer,
                 new ViewGroup.LayoutParams(
                         1,
                         1
@@ -356,11 +353,11 @@ public class MainActivity extends android.app.Activity {
         );
 
         // --------------------------------------------------------
-        // PAGES
+        // CREATE PAGES
         // --------------------------------------------------------
 
-        tabPage =
-                buildTabPage();
+        downloadPage =
+                buildDownloadPage();
 
         progressPage =
                 buildProgressPage();
@@ -369,29 +366,29 @@ public class MainActivity extends android.app.Activity {
                 buildFinishedPage();
 
         pageContainer.addView(
-                tabPage
+                downloadPage
         );
 
         // --------------------------------------------------------
-        // BOTTOM NAV
+        // BOTTOM NAVIGATION
         // --------------------------------------------------------
 
-        LinearLayout bottom =
+        LinearLayout bottomNav =
                 new LinearLayout(this);
 
-        bottom.setOrientation(
+        bottomNav.setOrientation(
                 LinearLayout.HORIZONTAL
         );
 
-        bottom.setGravity(
+        bottomNav.setGravity(
                 Gravity.CENTER
         );
 
-        bottom.setBackgroundColor(
+        bottomNav.setBackgroundColor(
                 Color.WHITE
         );
 
-        navTab =
+        navDownload =
                 createNavItem(
                         "↓",
                         "Download"
@@ -409,34 +406,34 @@ public class MainActivity extends android.app.Activity {
                         "Finished"
                 );
 
-        bottom.addView(
-                navTab,
+        bottomNav.addView(
+                navDownload,
                 new LinearLayout.LayoutParams(
                         0,
-                        72,
+                        75,
                         1
                 )
         );
 
-        bottom.addView(
+        bottomNav.addView(
                 navProgress,
                 new LinearLayout.LayoutParams(
                         0,
-                        72,
+                        75,
                         1
                 )
         );
 
-        bottom.addView(
+        bottomNav.addView(
                 navFinished,
                 new LinearLayout.LayoutParams(
                         0,
-                        72,
+                        75,
                         1
                 )
         );
 
-        navTab.setOnClickListener(
+        navDownload.setOnClickListener(
                 v -> showPage(0)
         );
 
@@ -449,7 +446,7 @@ public class MainActivity extends android.app.Activity {
         );
 
         root.addView(
-                bottom,
+                bottomNav,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         80
@@ -470,26 +467,26 @@ public class MainActivity extends android.app.Activity {
             String title
     ) {
 
-        TextView view =
+        TextView text =
                 new TextView(this);
 
-        view.setText(
+        text.setText(
                 icon + "\n" + title
         );
 
-        view.setTextSize(
+        text.setTextSize(
                 12
         );
 
-        view.setGravity(
+        text.setGravity(
                 Gravity.CENTER
         );
 
-        view.setTextColor(
+        text.setTextColor(
                 Color.GRAY
         );
 
-        return view;
+        return text;
     }
 
     // ============================================================
@@ -507,7 +504,7 @@ public class MainActivity extends android.app.Activity {
         if (page == 0) {
 
             pageContainer.addView(
-                    tabPage
+                    downloadPage
             );
 
         } else if (page == 1) {
@@ -527,16 +524,16 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // UPDATE NAV
+    // NAVIGATION COLOR
     // ============================================================
 
     private void updateNavigation() {
 
-        if (navTab == null) {
+        if (navDownload == null) {
             return;
         }
 
-        navTab.setTextColor(
+        navDownload.setTextColor(
                 currentPage == 0
                         ? Color.BLACK
                         : Color.GRAY
@@ -556,10 +553,10 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // TAB PAGE
+    // DOWNLOAD PAGE
     // ============================================================
 
-    private View buildTabPage() {
+    private View buildDownloadPage() {
 
         ScrollView scroll =
                 new ScrollView(this);
@@ -621,13 +618,13 @@ public class MainActivity extends android.app.Activity {
                 Color.GRAY
         );
 
-        LinearLayout.LayoutParams subParams =
+        LinearLayout.LayoutParams subtitleParams =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
 
-        subParams.setMargins(
+        subtitleParams.setMargins(
                 0,
                 6,
                 0,
@@ -636,14 +633,14 @@ public class MainActivity extends android.app.Activity {
 
         content.addView(
                 subtitle,
-                subParams
+                subtitleParams
         );
 
         // --------------------------------------------------------
         // URL CARD
         // --------------------------------------------------------
 
-        LinearLayout card =
+        LinearLayout urlCard =
                 createCard();
 
         TextView urlTitle =
@@ -662,7 +659,11 @@ public class MainActivity extends android.app.Activity {
                 android.graphics.Typeface.BOLD
         );
 
-        card.addView(
+        urlTitle.setTextColor(
+                Color.DKGRAY
+        );
+
+        urlCard.addView(
                 urlTitle
         );
 
@@ -678,7 +679,19 @@ public class MainActivity extends android.app.Activity {
         );
 
         input.setSingleLine(
-                true
+                false
+        );
+
+        input.setMinLines(
+                2
+        );
+
+        input.setMaxLines(
+                5
+        );
+
+        input.setGravity(
+                Gravity.TOP
         );
 
         input.setPadding(
@@ -701,36 +714,31 @@ public class MainActivity extends android.app.Activity {
                 12
         );
 
-        card.addView(
+        urlCard.addView(
                 input,
                 inputParams
         );
 
-        Button add =
+        Button addButton =
                 new Button(this);
 
-        add.setText(
+        addButton.setText(
                 "Tambah ke Antrian"
         );
 
-        add.setAllCaps(
+        addButton.setAllCaps(
                 false
         );
 
-        add.setOnClickListener(
+        addButton.setOnClickListener(
                 v -> {
 
-                    String url =
+                    String text =
                             input.getText()
-                                    .toString()
-                                    .trim();
+                                    .toString();
 
-                    if (url.isEmpty()) {
-                        return;
-                    }
-
-                    addUrlToQueue(
-                            url
+                    addMultipleUrls(
+                            text
                     );
 
                     input.setText("");
@@ -739,19 +747,19 @@ public class MainActivity extends android.app.Activity {
                 }
         );
 
-        card.addView(
-                add
+        urlCard.addView(
+                addButton
         );
 
         content.addView(
-                card
+                urlCard
         );
 
         // --------------------------------------------------------
         // PLATFORM
         // --------------------------------------------------------
 
-        LinearLayout platform =
+        LinearLayout platformCard =
                 createCard();
 
         TextView platformTitle =
@@ -770,45 +778,49 @@ public class MainActivity extends android.app.Activity {
                 android.graphics.Typeface.BOLD
         );
 
-        platform.addView(
-                platformTitle
-        );
-
-        TextView platformText =
-                new TextView(this);
-
-        platformText.setText(
-                "♪  TikTok        ✓  Public Video"
-        );
-
-        platformText.setTextSize(
-                14
-        );
-
-        platformText.setTextColor(
+        platformTitle.setTextColor(
                 Color.DKGRAY
         );
 
-        platformText.setPadding(
+        platformCard.addView(
+                platformTitle
+        );
+
+        TextView platform =
+                new TextView(this);
+
+        platform.setText(
+                "♪  TikTok        ✓  Public Video"
+        );
+
+        platform.setTextSize(
+                14
+        );
+
+        platform.setTextColor(
+                Color.DKGRAY
+        );
+
+        platform.setPadding(
                 0,
                 16,
                 0,
                 8
         );
 
-        platform.addView(
-                platformText
+        platformCard.addView(
+                platform
         );
 
         content.addView(
-                platform
+                platformCard
         );
 
         // --------------------------------------------------------
         // HOW TO
         // --------------------------------------------------------
 
-        LinearLayout how =
+        LinearLayout howCard =
                 createCard();
 
         TextView howTitle =
@@ -827,36 +839,40 @@ public class MainActivity extends android.app.Activity {
                 android.graphics.Typeface.BOLD
         );
 
-        how.addView(
+        howTitle.setTextColor(
+                Color.DKGRAY
+        );
+
+        howCard.addView(
                 howTitle
         );
 
         addStep(
-                how,
+                howCard,
                 "1",
                 "Paste link TikTok"
         );
 
         addStep(
-                how,
+                howCard,
                 "2",
                 "Tambahkan ke antrian"
         );
 
         addStep(
-                how,
+                howCard,
                 "3",
                 "Tekan Mulai Semua"
         );
 
         addStep(
-                how,
+                howCard,
                 "4",
                 "Video dan caption tersimpan otomatis"
         );
 
         content.addView(
-                how
+                howCard
         );
 
         scroll.addView(
@@ -867,7 +883,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // CARD
+    // CREATE CARD
     // ============================================================
 
     private LinearLayout createCard() {
@@ -1013,13 +1029,13 @@ public class MainActivity extends android.app.Activity {
                 Color.GRAY
         );
 
-        LinearLayout.LayoutParams subParams =
+        LinearLayout.LayoutParams subtitleParams =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
 
-        subParams.setMargins(
+        subtitleParams.setMargins(
                 0,
                 6,
                 0,
@@ -1028,8 +1044,12 @@ public class MainActivity extends android.app.Activity {
 
         content.addView(
                 subtitle,
-                subParams
+                subtitleParams
         );
+
+        // --------------------------------------------------------
+        // MULAI SEMUA
+        // --------------------------------------------------------
 
         startAllButton =
                 new Button(this);
@@ -1049,6 +1069,10 @@ public class MainActivity extends android.app.Activity {
         content.addView(
                 startAllButton
         );
+
+        // --------------------------------------------------------
+        // QUEUE
+        // --------------------------------------------------------
 
         queue =
                 new LinearLayout(this);
@@ -1178,13 +1202,13 @@ public class MainActivity extends android.app.Activity {
                 Color.GRAY
         );
 
-        LinearLayout.LayoutParams subParams =
+        LinearLayout.LayoutParams subtitleParams =
                 new LinearLayout.LayoutParams(
                         -1,
                         -2
                 );
 
-        subParams.setMargins(
+        subtitleParams.setMargins(
                 0,
                 6,
                 0,
@@ -1193,7 +1217,7 @@ public class MainActivity extends android.app.Activity {
 
         content.addView(
                 subtitle,
-                subParams
+                subtitleParams
         );
 
         finishedList =
@@ -1245,50 +1269,66 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // ADD URL
+    // ADD MULTIPLE URL
     // ============================================================
 
-    private void addUrlToQueue(
-            String url
+    private void addMultipleUrls(
+            String text
     ) {
 
-        if (url == null) {
+        if (text == null) {
             return;
         }
 
-        url =
-                url.trim();
+        String[] lines =
+                text.split(
+                        "\\r?\\n"
+                );
 
-        if (url.isEmpty()) {
-            return;
+        for (String line : lines) {
+
+            String url =
+                    line.trim();
+
+            if (url.isEmpty()) {
+                continue;
+            }
+
+            if (!url.startsWith(
+                    "http://"
+            )
+                    && !url.startsWith(
+                    "https://"
+            )) {
+
+                continue;
+            }
+
+            urlQueue.add(
+                    url
+            );
+
+            addQueueItem(
+                    url,
+                    urlQueue.size() - 1
+            );
         }
-
-        if (!url.startsWith("http://")
-                && !url.startsWith("https://")) {
-
-            return;
-        }
-
-        urlQueue.add(
-                url
-        );
-
-        addQueueItem(
-                url,
-                urlQueue.size() - 1
-        );
 
         updateEmptyStates();
     }
 
     // ============================================================
-    // QUEUE ITEM
+    // ADD QUEUE ITEM
     // ============================================================
 
     private void addQueueItem(
             String url,
             int index
     ) {
+
+        if (queue == null) {
+            return;
+        }
 
         LinearLayout card =
                 createCard();
@@ -1382,12 +1422,38 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
+    // UPDATE EMPTY
+    // ============================================================
+
+    private void updateEmptyStates() {
+
+        if (emptyProgressText != null) {
+
+            emptyProgressText.setVisibility(
+                    urlQueue.isEmpty()
+                            ? View.VISIBLE
+                            : View.GONE
+            );
+        }
+
+        if (emptyFinishedText != null
+                && finishedList != null) {
+
+            emptyFinishedText.setVisibility(
+                    finishedList.getChildCount() == 0
+                            ? View.VISIBLE
+                            : View.GONE
+            );
+        }
+    }
+
+    // ============================================================
     // SET STATUS
     // ============================================================
 
     private void setStatus(
             int index,
-            String text
+            String statusText
     ) {
 
         if (queue == null) {
@@ -1414,7 +1480,7 @@ public class MainActivity extends android.app.Activity {
 
             ((TextView) status)
                     .setText(
-                            text
+                            statusText
                     );
         }
     }
@@ -1439,7 +1505,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // START CURRENT
+    // START CURRENT DOWNLOAD
     // ============================================================
 
     private void startCurrentDownload() {
@@ -1464,8 +1530,11 @@ public class MainActivity extends android.app.Activity {
         currentCaption = "";
 
         submitClicked = false;
+
         mp4HdClicked = false;
+
         waitingForDownload = false;
+
         currentDownloadId = -1;
 
         setStatus(
@@ -1476,14 +1545,41 @@ public class MainActivity extends android.app.Activity {
         showPage(1);
 
         // --------------------------------------------------------
-        // PENTING:
-        // Setiap URL membuka ulang halaman SaveTikTok.
+        // PENTING
         // --------------------------------------------------------
 
         pageReady = false;
 
+        // Bersihkan halaman lama.
+        webView.stopLoading();
+
+        // Buka SaveTikTok lagi untuk URL berikutnya.
         webView.loadUrl(
                 SAVE_TIKTOK_URL
+        );
+
+        // --------------------------------------------------------
+        // FALLBACK TIMER
+        //
+        // Jangan hanya bergantung kepada onPageFinished().
+        // Jika callback tidak sesuai, kita tetap mencoba
+        // memasukkan URL setelah beberapa detik.
+        // --------------------------------------------------------
+
+        handler.postDelayed(
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        if (processing
+                                && !submitClicked) {
+
+                            injectTikTokUrl();
+                        }
+                    }
+                },
+                3500
         );
     }
 
@@ -1494,10 +1590,6 @@ public class MainActivity extends android.app.Activity {
     private void injectTikTokUrl() {
 
         if (!processing) {
-            return;
-        }
-
-        if (!pageReady) {
             return;
         }
 
@@ -1530,11 +1622,14 @@ public class MainActivity extends android.app.Activity {
                                 ""
                         );
 
-        String js =
+        String javascript =
                 "(function(){"
+
                         + "var input="
                         + "document.querySelector("
-                        + "'input[type=\"text\"],input[name=\"url\"],textarea'"
+                        + "'input[type=\"text\"],"
+                        + "input[name=\"url\"],"
+                        + "textarea'"
                         + ");"
 
                         + "if(!input){"
@@ -1548,35 +1643,48 @@ public class MainActivity extends android.app.Activity {
                         + "';"
 
                         + "input.dispatchEvent("
-                        + "new Event('input',{bubbles:true})"
+                        + "new Event("
+                        + "'input',"
+                        + "{bubbles:true}"
+                        + ")"
                         + ");"
 
                         + "input.dispatchEvent("
-                        + "new Event('change',{bubbles:true})"
+                        + "new Event("
+                        + "'change',"
+                        + "{bubbles:true}"
+                        + ")"
                         + ");"
 
-                        + "var els="
+                        + "var buttons="
                         + "document.querySelectorAll("
-                        + " 'button,a,input[type=\"submit\"]'"
+                        + "'button,"
+                        + "a,"
+                        + "input[type=\"submit\"]'"
                         + ");"
 
-                        + "for(var i=0;i<els.length;i++){"
+                        + "for(var i=0;"
+                        + "i<buttons.length;"
+                        + "i++){"
 
-                        + "var t=("
-                        + "els[i].innerText||"
-                        + "els[i].value||"
+                        + "var text=("
+                        + "buttons[i].innerText"
+                        + "||"
+                        + "buttons[i].value"
+                        + "||"
                         + "''"
                         + ").trim().toLowerCase();"
 
-                        + "if(t==='unduh'||"
-                        + "t==='download'){"
+                        + "if("
+                        + "text==='unduh'"
+                        + "||"
+                        + "text==='download'"
+                        + "){"
 
-                        + "els[i].click();"
+                        + "buttons[i].click();"
 
                         + "return 'CLICKED';"
-
                         + "}"
-
                         + "}"
 
                         + "return 'NO_BUTTON';"
@@ -1584,7 +1692,7 @@ public class MainActivity extends android.app.Activity {
                         + "})();";
 
         webView.evaluateJavascript(
-                js,
+                javascript,
                 value -> {
 
                     if (value == null) {
@@ -1606,7 +1714,14 @@ public class MainActivity extends android.app.Activity {
                         );
 
                         handler.postDelayed(
-                                () -> findMp4HdButton(),
+                                new Runnable() {
+
+                                    @Override
+                                    public void run() {
+
+                                        findMp4HdButton();
+                                    }
+                                },
                                 1800
                         );
 
@@ -1619,19 +1734,27 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // RETRY INPUT
+    // RETRY INJECT
     // ============================================================
 
     private void retryInject() {
 
+        if (!processing) {
+            return;
+        }
+
         handler.postDelayed(
-                () -> {
+                new Runnable() {
 
-                    if (processing) {
+                    @Override
+                    public void run() {
 
-                        injectTikTokUrl();
+                        if (processing
+                                && !submitClicked) {
+
+                            injectTikTokUrl();
+                        }
                     }
-
                 },
                 1000
         );
@@ -1651,7 +1774,7 @@ public class MainActivity extends android.app.Activity {
             return;
         }
 
-        String js =
+        String javascript =
                 "(function(){"
 
                         + "var result="
@@ -1672,27 +1795,45 @@ public class MainActivity extends android.app.Activity {
                         + "return 'NO_CARD';"
                         + "}"
 
+                        // ------------------------------------------------
+                        // CAPTION
+                        // ------------------------------------------------
+
                         + "var captionEl="
                         + "card.querySelector("
-                        + "'.tik-left .thumbnail .content .clearfix h3'"
+                        + "'.tik-left "
+                        + ".thumbnail "
+                        + ".content "
+                        + ".clearfix h3'"
                         + ");"
 
                         + "var caption="
-                        + "captionEl ? "
-                        + "captionEl.innerText.trim() : '';"
+                        + "captionEl"
+                        + " ? "
+                        + "captionEl.innerText.trim()"
+                        + " : '';"
+
+                        // ------------------------------------------------
+                        // MP4 HD
+                        // ------------------------------------------------
 
                         + "var links="
                         + "card.querySelectorAll("
                         + "'.dl-action a.tik-button-dl'"
                         + ");"
 
-                        + "for(var i=0;i<links.length;i++){"
+                        + "for(var i=0;"
+                        + "i<links.length;"
+                        + "i++){"
 
                         + "var text=("
-                        + "links[i].innerText||''"
+                        + "links[i].innerText"
+                        + "||''"
                         + ").trim().toLowerCase();"
 
-                        + "if(text.indexOf('mp4 hd')!==-1){"
+                        + "if("
+                        + "text.indexOf('mp4 hd')!==-1"
+                        + "){"
 
                         + "if(!caption){"
                         + "return 'NO_CAPTION';"
@@ -1700,11 +1841,10 @@ public class MainActivity extends android.app.Activity {
 
                         + "links[i].click();"
 
-                        + "return 'HD_CLICKED|' + "
-                        + "encodeURIComponent(caption);"
+                        + "return 'HD_CLICKED|'"
+                        + "+encodeURIComponent(caption);"
 
                         + "}"
-
                         + "}"
 
                         + "return 'NO_HD';"
@@ -1712,7 +1852,7 @@ public class MainActivity extends android.app.Activity {
                         + "})();";
 
         webView.evaluateJavascript(
-                js,
+                javascript,
                 value -> {
 
                     if (value == null) {
@@ -1725,8 +1865,8 @@ public class MainActivity extends android.app.Activity {
                     String result =
                             value;
 
-                    // evaluateJavascript mengembalikan
-                    // string dengan tanda kutip.
+                    // Android evaluateJavascript
+                    // mengembalikan string dengan quote.
                     if (result.length() >= 2
                             && result.startsWith("\"")
                             && result.endsWith("\"")) {
@@ -1784,26 +1924,34 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // RETRY MP4 HD
+    // RETRY FIND MP4 HD
     // ============================================================
 
     private void retryFindMp4Hd() {
 
+        if (!processing) {
+            return;
+        }
+
         handler.postDelayed(
-                () -> {
+                new Runnable() {
 
-                    if (processing) {
+                    @Override
+                    public void run() {
 
-                        findMp4HdButton();
+                        if (processing
+                                && !mp4HdClicked) {
+
+                            findMp4HdButton();
+                        }
                     }
-
                 },
                 1000
         );
     }
 
     // ============================================================
-    // WEB DOWNLOAD
+    // HANDLE DOWNLOAD
     // ============================================================
 
     private void handleWebDownload(
@@ -1831,12 +1979,6 @@ public class MainActivity extends android.app.Activity {
             return;
         }
 
-        // --------------------------------------------------------
-        // Karena DownloadListener dipanggil setelah link download
-        // ditekan, kita tidak perlu memaksa URL harus berakhiran
-        // .mp4. SaveTikTok dapat menggunakan URL token/dynamic URL.
-        // --------------------------------------------------------
-
         waitingForDownload = true;
 
         setStatus(
@@ -1846,9 +1988,7 @@ public class MainActivity extends android.app.Activity {
 
         enqueueDownload(
                 url,
-                userAgent,
-                contentDisposition,
-                mimetype
+                userAgent
         );
     }
 
@@ -1858,9 +1998,7 @@ public class MainActivity extends android.app.Activity {
 
     private void enqueueDownload(
             String url,
-            String userAgent,
-            String contentDisposition,
-            String mimetype
+            String userAgent
     ) {
 
         try {
@@ -1895,13 +2033,7 @@ public class MainActivity extends android.app.Activity {
             );
 
             // ----------------------------------------------------
-            // Folder:
-            //
-            // Download/
-            //   TikTokDownloadManager/
-            //      001/
-            //         video.mp4
-            //         caption.txt
+            // DESTINATION
             // ----------------------------------------------------
 
             request.setDestinationInExternalPublicDir(
@@ -1911,6 +2043,10 @@ public class MainActivity extends android.app.Activity {
                     "video.mp4"
             );
 
+            // ----------------------------------------------------
+            // USER AGENT
+            // ----------------------------------------------------
+
             if (userAgent != null
                     && !userAgent.isEmpty()) {
 
@@ -1919,6 +2055,10 @@ public class MainActivity extends android.app.Activity {
                         userAgent
                 );
             }
+
+            // ----------------------------------------------------
+            // COOKIE
+            // ----------------------------------------------------
 
             String cookies =
                     CookieManager
@@ -1936,6 +2076,10 @@ public class MainActivity extends android.app.Activity {
                 );
             }
 
+            // ----------------------------------------------------
+            // REFERER
+            // ----------------------------------------------------
+
             request.addRequestHeader(
                     "Referer",
                     SAVE_TIKTOK_URL
@@ -1946,17 +2090,36 @@ public class MainActivity extends android.app.Activity {
                             request
                     );
 
-            // Simpan caption ke folder yang sama.
+            // ----------------------------------------------------
+            // SIMPAN CAPTION
+            // ----------------------------------------------------
+
             saveCaptionFile(
                     folderName,
                     currentCaption
             );
 
-            checkDownloadStatus();
+            // ----------------------------------------------------
+            // CEK STATUS
+            // ----------------------------------------------------
+
+            handler.postDelayed(
+                    new Runnable() {
+
+                        @Override
+                        public void run() {
+
+                            checkDownloadStatus();
+                        }
+                    },
+                    500
+            );
 
         } catch (Exception e) {
 
             waitingForDownload = false;
+
+            currentDownloadId = -1;
 
             setStatus(
                     currentIndex,
@@ -1964,14 +2127,21 @@ public class MainActivity extends android.app.Activity {
             );
 
             handler.postDelayed(
-                    () -> nextVideo(),
+                    new Runnable() {
+
+                        @Override
+                        public void run() {
+
+                            nextVideo();
+                        }
+                    },
                     1500
             );
         }
     }
 
     // ============================================================
-    // CHECK DOWNLOAD
+    // CHECK DOWNLOAD STATUS
     // ============================================================
 
     private void checkDownloadStatus() {
@@ -2007,6 +2177,10 @@ public class MainActivity extends android.app.Activity {
                                 )
                         );
 
+                // ------------------------------------------------
+                // SUCCESS
+                // ------------------------------------------------
+
                 if (status ==
                         DownloadManager.STATUS_SUCCESSFUL) {
 
@@ -2016,6 +2190,10 @@ public class MainActivity extends android.app.Activity {
 
                     return;
                 }
+
+                // ------------------------------------------------
+                // FAILED
+                // ------------------------------------------------
 
                 if (status ==
                         DownloadManager.STATUS_FAILED) {
@@ -2039,8 +2217,19 @@ public class MainActivity extends android.app.Activity {
             }
         }
 
+        // --------------------------------------------------------
+        // MASIH BERJALAN
+        // --------------------------------------------------------
+
         handler.postDelayed(
-                () -> checkDownloadStatus(),
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        checkDownloadStatus();
+                    }
+                },
                 1000
         );
     }
@@ -2052,6 +2241,7 @@ public class MainActivity extends android.app.Activity {
     private void downloadSuccess() {
 
         waitingForDownload = false;
+
         currentDownloadId = -1;
 
         setStatus(
@@ -2065,8 +2255,15 @@ public class MainActivity extends android.app.Activity {
         );
 
         handler.postDelayed(
-                () -> nextVideo(),
-                800
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        nextVideo();
+                    }
+                },
+                1000
         );
     }
 
@@ -2077,6 +2274,7 @@ public class MainActivity extends android.app.Activity {
     private void downloadFailed() {
 
         waitingForDownload = false;
+
         currentDownloadId = -1;
 
         setStatus(
@@ -2085,8 +2283,15 @@ public class MainActivity extends android.app.Activity {
         );
 
         handler.postDelayed(
-                () -> nextVideo(),
-                1200
+                new Runnable() {
+
+                    @Override
+                    public void run() {
+
+                        nextVideo();
+                    }
+                },
+                1500
         );
     }
 
@@ -2103,10 +2308,13 @@ public class MainActivity extends android.app.Activity {
             processing = false;
 
             currentTikTokUrl = "";
+
             currentCaption = "";
 
             submitClicked = false;
+
             mp4HdClicked = false;
+
             waitingForDownload = false;
 
             showPage(2);
@@ -2115,12 +2323,20 @@ public class MainActivity extends android.app.Activity {
         }
 
         currentTikTokUrl = "";
+
         currentCaption = "";
 
         submitClicked = false;
+
         mp4HdClicked = false;
+
         waitingForDownload = false;
+
         currentDownloadId = -1;
+
+        // --------------------------------------------------------
+        // URL berikutnya menggunakan halaman SaveTikTok baru.
+        // --------------------------------------------------------
 
         startCurrentDownload();
     }
@@ -2140,6 +2356,10 @@ public class MainActivity extends android.app.Activity {
 
         LinearLayout card =
                 createCard();
+
+        // --------------------------------------------------------
+        // NOMOR
+        // --------------------------------------------------------
 
         TextView number =
                 new TextView(this);
@@ -2164,18 +2384,22 @@ public class MainActivity extends android.app.Activity {
                 number
         );
 
-        TextView done =
+        // --------------------------------------------------------
+        // STATUS
+        // --------------------------------------------------------
+
+        TextView status =
                 new TextView(this);
 
-        done.setText(
+        status.setText(
                 "Selesai ✓"
         );
 
-        done.setTextSize(
+        status.setTextSize(
                 13
         );
 
-        done.setTextColor(
+        status.setTextColor(
                 Color.rgb(
                         35,
                         130,
@@ -2183,7 +2407,7 @@ public class MainActivity extends android.app.Activity {
                 )
         );
 
-        done.setPadding(
+        status.setPadding(
                 0,
                 8,
                 0,
@@ -2191,25 +2415,29 @@ public class MainActivity extends android.app.Activity {
         );
 
         card.addView(
-                done
+                status
         );
+
+        // --------------------------------------------------------
+        // CAPTION
+        // --------------------------------------------------------
 
         TextView captionText =
                 new TextView(this);
 
-        String text =
+        String displayCaption =
                 caption == null
                         ? ""
                         : caption.trim();
 
-        if (text.isEmpty()) {
+        if (displayCaption.isEmpty()) {
 
-            text =
+            displayCaption =
                     "Caption tidak tersedia.";
         }
 
         captionText.setText(
-                text
+                displayCaption
         );
 
         captionText.setTextSize(
@@ -2230,6 +2458,10 @@ public class MainActivity extends android.app.Activity {
         card.addView(
                 captionText
         );
+
+        // --------------------------------------------------------
+        // FOLDER
+        // --------------------------------------------------------
 
         TextView folder =
                 new TextView(this);
@@ -2267,7 +2499,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // SAVE CAPTION
+    // SAVE CAPTION FILE
     // ============================================================
 
     private void saveCaptionFile(
@@ -2280,6 +2512,10 @@ public class MainActivity extends android.app.Activity {
         }
 
         try {
+
+            // ----------------------------------------------------
+            // ANDROID 10+
+            // ----------------------------------------------------
 
             if (Build.VERSION.SDK_INT >=
                     Build.VERSION_CODES.Q) {
@@ -2329,11 +2565,16 @@ public class MainActivity extends android.app.Activity {
                         );
 
                         output.flush();
+
                         output.close();
                     }
                 }
 
             } else {
+
+                // ------------------------------------------------
+                // ANDROID LAMA
+                // ------------------------------------------------
 
                 File downloads =
                         Environment
@@ -2350,6 +2591,7 @@ public class MainActivity extends android.app.Activity {
                         );
 
                 if (!folder.exists()) {
+
                     folder.mkdirs();
                 }
 
@@ -2370,17 +2612,19 @@ public class MainActivity extends android.app.Activity {
                                 "UTF-8"
                         );
 
-                BufferedWriter buffered =
+                BufferedWriter bufferedWriter =
                         new BufferedWriter(
                                 writer
                         );
 
-                buffered.write(
+                bufferedWriter.write(
                         caption
                 );
 
-                buffered.flush();
-                buffered.close();
+                bufferedWriter.flush();
+
+                bufferedWriter.close();
+
                 output.close();
             }
 
@@ -2390,33 +2634,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // EMPTY STATES
-    // ============================================================
-
-    private void updateEmptyStates() {
-
-        if (emptyProgressText != null) {
-
-            emptyProgressText.setVisibility(
-                    urlQueue.isEmpty()
-                            ? View.VISIBLE
-                            : View.GONE
-            );
-        }
-
-        if (emptyFinishedText != null
-                && finishedList != null) {
-
-            emptyFinishedText.setVisibility(
-                    finishedList.getChildCount() == 0
-                            ? View.VISIBLE
-                            : View.GONE
-            );
-        }
-    }
-
-    // ============================================================
-    // DOWNLOAD RECEIVER
+    // REGISTER DOWNLOAD RECEIVER
     // ============================================================
 
     private void registerDownloadReceiver() {
@@ -2466,11 +2684,16 @@ public class MainActivity extends android.app.Activity {
         currentIndex = 0;
 
         currentTikTokUrl = "";
+
         currentCaption = "";
 
         submitClicked = false;
+
         mp4HdClicked = false;
+
         waitingForDownload = false;
+
+        currentDownloadId = -1;
 
         if (queue != null) {
 
@@ -2481,40 +2704,28 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // MULTIPLE URL
+    // RELOAD SAVETIKTOK
     // ============================================================
 
-    private void addMultipleUrls(
-            String text
-    ) {
+    private void reloadSaveTikTok() {
 
-        if (text == null) {
+        if (webView == null) {
             return;
         }
 
-        String[] lines =
-                text.split(
-                        "\\r?\\n"
-                );
+        pageReady = false;
 
-        for (String line : lines) {
+        submitClicked = false;
 
-            String url =
-                    line.trim();
+        mp4HdClicked = false;
 
-            if (!url.isEmpty()) {
-
-                addUrlToQueue(
-                        url
-                );
-            }
-        }
-
-        updateEmptyStates();
+        webView.loadUrl(
+                SAVE_TIKTOK_URL
+        );
     }
 
     // ============================================================
-    // ON BACK PRESSED
+    // BACK
     // ============================================================
 
     @Override
@@ -2531,7 +2742,7 @@ public class MainActivity extends android.app.Activity {
     }
 
     // ============================================================
-    // ON DESTROY
+    // DESTROY
     // ============================================================
 
     @Override
