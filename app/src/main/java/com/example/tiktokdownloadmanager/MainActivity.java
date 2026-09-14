@@ -30,6 +30,7 @@ import android.widget.LinearLayout;
 import android.widget.MediaController;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 import android.widget.VideoView;
 
 import org.json.JSONObject;
