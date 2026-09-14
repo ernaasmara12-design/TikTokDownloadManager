@@ -46,9 +46,8 @@ public class MainActivity extends Activity {
             "https://savetiktok.to/id";
 
     private static final int REQ_STORAGE = 501;
-
     private static final int MAX_INPUT_CHECKS = 20;
-    private static final int MAX_RESULT_CHECKS = 40;
+    private static final int MAX_MP4_HD_CHECKS = 40;
 
     private EditText input;
     private LinearLayout queue;
@@ -210,7 +209,8 @@ public class MainActivity extends Activity {
                 text(
                         "Hasil download disimpan otomatis di " +
                         "Download/TikTokDownloadManager. " +
-                        "Setiap video mempunyai folder sendiri.",
+                        "Setiap video mempunyai folder sendiri " +
+                        "dan caption disimpan sebagai caption.txt.",
                         14
                 )
         );
@@ -225,8 +225,8 @@ public class MainActivity extends Activity {
         root.addView(queue);
 
         /*
-         * WebView tetap ada sebagai mesin otomatis,
-         * tetapi TIDAK ditampilkan di dashboard.
+         * WebView hanya sebagai mesin otomatis.
+         * Tidak dimasukkan ke dashboard.
          */
         webView =
                 new WebView(this);
@@ -236,12 +236,6 @@ public class MainActivity extends Activity {
         );
 
         configureWebView();
-
-        /*
-         * Jangan masukkan WebView ke dashboard.
-         * WebView tetap bisa melakukan proses
-         * background dan menerima DownloadListener.
-         */
 
         load.setOnClickListener(
                 v -> loadQueue()
@@ -338,7 +332,7 @@ public class MainActivity extends Activity {
                             );
 
                             handler.postDelayed(
-                                    () -> waitForInput(
+                                    () -> waitForSaveTikTokInput(
                                             urls.get(currentIndex),
                                             0
                                     ),
@@ -564,7 +558,6 @@ public class MainActivity extends Activity {
         downloadStarted = false;
 
         currentCaption = "";
-
         currentDownloadId = -1L;
 
         setStatus(
@@ -583,16 +576,12 @@ public class MainActivity extends Activity {
                 "Status: membuka SaveTikTok..."
         );
 
-        /*
-         * WebView TIDAK ditampilkan.
-         * Hanya digunakan sebagai mesin otomatis.
-         */
         webView.loadUrl(
                 SAVE_URL
         );
     }
 
-    private void waitForInput(
+    private void waitForSaveTikTokInput(
             String tiktokUrl,
             int attempt
     ) {
@@ -620,28 +609,28 @@ public class MainActivity extends Activity {
         String js =
                 "(function(){" +
 
-                "var f=Array.from(" +
+                "var fields=Array.from(" +
                 "document.querySelectorAll(" +
                 "'input,textarea'));" +
 
-                "var x=f.find(function(e){" +
+                "var field=fields.find(function(el){" +
 
                 "var p=(" +
-                "(e.placeholder||'')+' '+" +
-                "(e.getAttribute('aria-label')||'')+' '+" +
-                "(e.name||'')+' '+" +
-                "(e.type||'')" +
+                "(el.placeholder||'')+' '+" +
+                "(el.getAttribute('aria-label')||'')+' '+" +
+                "(el.name||'')+' '+" +
+                "(el.type||'')" +
                 ").toLowerCase();" +
 
                 "return p.includes('tautan')" +
                 "||p.includes('tiktok')" +
                 "||p.includes('link')" +
                 "||p.includes('url')" +
-                "||e.type==='url';" +
+                "||el.type==='url';" +
 
                 "});" +
 
-                "return x?'FOUND':'WAIT';" +
+                "return field?'FOUND':'WAIT';" +
 
                 "})()";
 
@@ -653,7 +642,7 @@ public class MainActivity extends Activity {
                             result.contains("FOUND")) {
 
                         handler.postDelayed(
-                                () -> injectUrl(
+                                () -> injectTikTokUrl(
                                         tiktokUrl
                                 ),
                                 300
@@ -662,7 +651,7 @@ public class MainActivity extends Activity {
                     } else {
 
                         handler.postDelayed(
-                                () -> waitForInput(
+                                () -> waitForSaveTikTokInput(
                                         tiktokUrl,
                                         attempt + 1
                                 ),
@@ -673,7 +662,7 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void injectUrl(
+    private void injectTikTokUrl(
             String tiktokUrl
     ) {
 
@@ -683,7 +672,7 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String safe =
+        String safeUrl =
                 JSONObject.quote(
                         tiktokUrl
                 );
@@ -691,78 +680,83 @@ public class MainActivity extends Activity {
         String js =
                 "(function(){" +
 
-                "var f=Array.from(" +
+                "var fields=Array.from(" +
                 "document.querySelectorAll(" +
                 "'input,textarea'));" +
 
-                "var x=f.find(function(e){" +
+                "var field=fields.find(function(el){" +
 
                 "var p=(" +
-                "(e.placeholder||'')+' '+" +
-                "(e.getAttribute('aria-label')||'')+' '+" +
-                "(e.name||'')+' '+" +
-                "(e.type||'')" +
+                "(el.placeholder||'')+' '+" +
+                "(el.getAttribute('aria-label')||'')+' '+" +
+                "(el.name||'')+' '+" +
+                "(el.type||'')" +
                 ").toLowerCase();" +
 
                 "return p.includes('tautan')" +
                 "||p.includes('tiktok')" +
                 "||p.includes('link')" +
                 "||p.includes('url')" +
-                "||e.type==='url';" +
+                "||el.type==='url';" +
 
                 "});" +
 
-                "if(!x)return 'NO_FIELD';" +
+                "if(!field)return 'NO_FIELD';" +
 
-                "var proto=x instanceof " +
-                "HTMLTextAreaElement" +
+                "var proto=" +
+                "field instanceof HTMLTextAreaElement" +
                 "?HTMLTextAreaElement.prototype" +
                 ":HTMLInputElement.prototype;" +
 
-                "var d=Object.getOwnPropertyDescriptor(" +
+                "var desc=" +
+                "Object.getOwnPropertyDescriptor(" +
                 "proto,'value');" +
 
-                "if(d&&d.set)d.set.call(x," +
-                safe +
+                "if(desc&&desc.set){" +
+                "desc.set.call(field," +
+                safeUrl +
+                ");" +
+                "}else{" +
+                "field.value=" +
+                safeUrl +
+                ";" +
+                "}" +
+
+                "field.dispatchEvent(" +
+                "new Event('input',{bubbles:true})" +
                 ");" +
 
-                "else x.value=" +
-                safe +
-                ";" +
+                "field.dispatchEvent(" +
+                "new Event('change',{bubbles:true})" +
+                ");" +
 
-                "x.dispatchEvent(new Event(" +
-                "'input',{bubbles:true}));" +
-
-                "x.dispatchEvent(new Event(" +
-                "'change',{bubbles:true}));" +
-
-                "var bs=Array.from(" +
+                "var buttons=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,input[type=submit]," +
                 "input[type=button],a'" +
-                "));" +
+                ")" +
+                ");" +
 
-                "var b=bs.find(function(e){" +
+                "var button=buttons.find(function(el){" +
 
                 "var t=(" +
-                "e.innerText||" +
-                "e.textContent||" +
-                "e.value||" +
-                "e.getAttribute('aria-label')||''" +
+                "el.innerText||" +
+                "el.textContent||" +
+                "el.value||" +
+                "el.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
-                "return t==='unduh'" +
-                "||t==='download';" +
+                "return t==='unduh'||t==='download';" +
 
                 "});" +
 
-                "if(!b)return 'NO_BUTTON';" +
+                "if(!button)return 'NO_BUTTON';" +
 
-                "b.click();" +
+                "button.click();" +
 
-                "return x.value===" +
-                safe +
+                "return field.value===" +
+                safeUrl +
                 "?'OK':'FAILED';" +
 
                 "})()";
@@ -786,16 +780,14 @@ public class MainActivity extends Activity {
                         );
 
                         handler.postDelayed(
-                                () -> findMp4Hd(
-                                        0
-                                ),
+                                () -> findMp4HdButton(0),
                                 1800
                         );
 
                     } else {
 
                         handler.postDelayed(
-                                () -> waitForInput(
+                                () -> waitForSaveTikTokInput(
                                         tiktokUrl,
                                         0
                                 ),
@@ -806,7 +798,7 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void findMp4Hd(
+    private void findMp4HdButton(
             int attempt
     ) {
 
@@ -816,10 +808,10 @@ public class MainActivity extends Activity {
             return;
         }
 
-        if (attempt >= MAX_RESULT_CHECKS) {
+        if (attempt >= MAX_MP4_HD_CHECKS) {
 
             webStatus.setText(
-                    "Status: MP4 HD tidak ditemukan"
+                    "Status: tombol MP4 HD tidak ditemukan"
             );
 
             setStatus(
@@ -830,88 +822,233 @@ public class MainActivity extends Activity {
             return;
         }
 
+        /*
+         * DETEKSI CAPTION V6.2
+         *
+         * Tombol MP4 HD digunakan sebagai anchor.
+         *
+         * Dari tombol tersebut kita cari card hasil video
+         * terdekat yang mempunyai thumbnail dan beberapa
+         * tombol download.
+         *
+         * Caption dicari hanya di dalam card tersebut.
+         */
         String js =
                 "(function(){" +
 
-                "var es=Array.from(" +
+                "var buttons=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,a,input[type=button]," +
                 "input[type=submit],[role=button]'" +
                 "));" +
 
-                "var target=es.find(function(e){" +
+                "var target=buttons.find(function(el){" +
 
                 "var t=(" +
-                "e.innerText||" +
-                "e.textContent||" +
-                "e.value||" +
-                "e.getAttribute('aria-label')||''" +
+                "el.innerText||" +
+                "el.textContent||" +
+                "el.value||" +
+                "el.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
-                "return t.includes('unduh mp4 hd')" +
+                "return t==='unduh mp4 hd'" +
+                "||t==='download mp4 hd'" +
+                "||t.includes('unduh mp4 hd')" +
                 "||t.includes('download mp4 hd');" +
 
                 "});" +
 
-                "var caption='';" +
+                "if(!target)" +
+                "return JSON.stringify({" +
+                "state:'WAIT',caption:''});" +
 
-                /*
-                 * Ambil kandidat teks yang lebih dekat
-                 * dengan hasil video.
-                 */
-                "if(target){" +
+                "var targetRect=" +
+                "target.getBoundingClientRect();" +
 
-                "var parent=target.parentElement;" +
+                "var card=null;" +
+
+                "var parent=" +
+                "target.parentElement;" +
 
                 "for(var level=0;" +
-                "level<5&&parent;" +
+                "level<8&&parent;" +
                 "level++," +
                 "parent=parent.parentElement){" +
 
-                "var candidates=Array.from(" +
-                "parent.querySelectorAll(" +
-                "'h1,h2,h3,h4,p,span,div'" +
-                "));" +
+                "var imgs=parent.querySelectorAll('img');" +
 
-                "for(var i=0;" +
-                "i<candidates.length;i++){" +
+                "var btns=parent.querySelectorAll(" +
+                "'button,a,input[type=button]," +
+                "input[type=submit],[role=button]'" +
+                ");" +
 
-                "var s=(" +
-                "candidates[i].innerText||" +
-                "candidates[i].textContent||''" +
-                ").replace(/\\s+/g,' ')" +
-                ".trim();" +
+                "if(imgs.length>0&&btns.length>=3){" +
+                "card=parent;" +
+                "break;" +
+                "}" +
 
-                "if(s.length>=3&&" +
-                "s.length<=500&&" +
+                "}" +
 
-                "!/^(" +
-                "download|unduh|" +
+                "if(!card)" +
+                "card=target.parentElement;" +
+
+                "var images=Array.from(" +
+                "card.querySelectorAll('img')" +
+                ").filter(function(img){" +
+
+                "var r=" +
+                "img.getBoundingClientRect();" +
+
+                "return r.width>30&&r.height>30;" +
+
+                "});" +
+
+                "var thumbnail=" +
+                "images.length?images[0]:null;" +
+
+                "var imageRect=" +
+                "thumbnail" +
+                "?thumbnail.getBoundingClientRect()" +
+                ":null;" +
+
+                "var blocked=" +
+                "/^(download|unduh|" +
                 "download mp4|unduh mp4|" +
                 "download mp4 hd|unduh mp4 hd|" +
                 "download mp3|unduh mp3|" +
-                "share|bagikan|copy|salin" +
-                ")$/i.test(s)&&" +
+                "share|bagikan|copy|salin|" +
+                "save|simpan|" +
+                "pengunduh tiktok|" +
+                "pengunduh foto tiktok)$/i;" +
 
-                "!/savetiktok|tiktok download manager/i" +
-                ".test(s)&&" +
+                "var siteText=" +
+                "/(savetiktok|" +
+                "tiktok download manager|" +
+                "download video tiktok|" +
+                "tanpa watermark|" +
+                "bahasa indonesia|english|" +
+                "español|français|deutsch|" +
+                "italiano|português|polski|" +
+                "русский|中文|日本語|" +
+                "한국어|bahasa malaysia)/i;" +
 
-                "(/#/.test(s)||s.length>20)){" +
+                "var interactive=" +
+                "'button,a,input,select,textarea,[role=button]';" +
 
-                "caption=s;" +
-                "break;" +
+                "var elements=Array.from(" +
+                "card.querySelectorAll(" +
+                "'h1,h2,h3,h4,p,span,div,section'" +
+                "));" +
+
+                "var candidates=[];" +
+
+                "elements.forEach(function(el){" +
+
+                "if(el===target||el.contains(target))" +
+                "return;" +
+
+                "if(el.querySelector(interactive))" +
+                "return;" +
+
+                "if(el===thumbnail)" +
+                "return;" +
+
+                "var r=el.getBoundingClientRect();" +
+
+                "if(r.width<5||r.height<5)" +
+                "return;" +
+
+                "if(r.bottom<=0||r.top>=window.innerHeight)" +
+                "return;" +
+
+                "if(r.bottom>targetRect.top+15)" +
+                "return;" +
+
+                "var value=(" +
+                "el.innerText||" +
+                "el.textContent||''" +
+                ").replace(/\\s+/g,' ')" +
+                ".trim();" +
+
+                "if(!value)" +
+                "return;" +
+
+                "if(value.length<2||value.length>500)" +
+                "return;" +
+
+                "if(blocked.test(value))" +
+                "return;" +
+
+                "if(siteText.test(value))" +
+                "return;" +
+
+                "if(/^https?:\\/\\//i.test(value))" +
+                "return;" +
+
+                "var hasHash=/#/.test(value);" +
+
+                "var nearImage=true;" +
+
+                "if(imageRect){" +
+
+                "nearImage=" +
+                "r.left>=imageRect.left-30;" +
 
                 "}" +
-                "}" +
 
-                "if(caption)break;" +
-                "}" +
+                "var score=0;" +
 
-                "}" +
+                "if(hasHash)score+=1000;" +
+
+                "if(nearImage)score+=300;" +
+
+                "if(value.length>=10)score+=50;" +
+
+                "score-=Math.min(" +
+                "300," +
+                "Math.abs(targetRect.top-r.bottom)" +
+                ");" +
+
+                "candidates.push({" +
+                "el:el," +
+                "text:value," +
+                "score:score" +
+                "});" +
+
+                "});" +
+
+                /*
+                 * Buang parent yang hanya membungkus
+                 * elemen caption yang lebih spesifik.
+                 */
+                "candidates=candidates.filter(function(item){" +
+
+                "return !candidates.some(function(other){" +
+
+                "return other!==item&&" +
+                "item.el.contains(other.el)&&" +
+                "other.text.length<item.text.length;" +
+
+                "});" +
+
+                "});" +
+
+                "candidates.sort(function(a,b){" +
+                "return b.score-a.score;" +
+                "});" +
+
+                "var caption=" +
+                "candidates.length" +
+                "?candidates[0].text" +
+                ":'';" +
+
+                "if(blocked.test(caption)||" +
+                "siteText.test(caption))" +
+                "caption='';" +
 
                 "return JSON.stringify({" +
-                "found:!!target," +
+                "state:'FOUND'," +
                 "caption:caption" +
                 "});" +
 
@@ -923,7 +1060,7 @@ public class MainActivity extends Activity {
 
                     if (result == null) {
 
-                        retryFindMp4Hd(
+                        retryCaptionDetection(
                                 attempt
                         );
 
@@ -949,11 +1086,22 @@ public class MainActivity extends Activity {
                                         clean
                                 );
 
-                        boolean found =
-                                obj.optBoolean(
-                                        "found",
-                                        false
+                        String state =
+                                obj.optString(
+                                        "state",
+                                        ""
                                 );
+
+                        if (!"FOUND".equals(
+                                state
+                        )) {
+
+                            retryCaptionDetection(
+                                    attempt
+                            );
+
+                            return;
+                        }
 
                         currentCaption =
                                 obj.optString(
@@ -961,20 +1109,28 @@ public class MainActivity extends Activity {
                                         ""
                                 ).trim();
 
-                        if (found) {
+                        if (currentCaption.isEmpty()) {
 
-                            clickMp4Hd();
+                            webStatus.setText(
+                                    "Status: MP4 HD ditemukan, caption tidak terdeteksi"
+                            );
 
                         } else {
 
-                            retryFindMp4Hd(
-                                    attempt
+                            webStatus.setText(
+                                    "Status: caption ditemukan"
                             );
                         }
 
+                        /*
+                         * Caption sudah disimpan di memory
+                         * sebelum MP4 HD diklik.
+                         */
+                        clickMp4HdButton();
+
                     } catch (Exception e) {
 
-                        retryFindMp4Hd(
+                        retryCaptionDetection(
                                 attempt
                         );
                     }
@@ -982,36 +1138,36 @@ public class MainActivity extends Activity {
         );
     }
 
-    private void retryFindMp4Hd(
+    private void retryCaptionDetection(
             int attempt
     ) {
 
         handler.postDelayed(
-                () -> findMp4Hd(
+                () -> findMp4HdButton(
                         attempt + 1
                 ),
                 500
         );
     }
 
-    private void clickMp4Hd() {
+    private void clickMp4HdButton() {
 
         String js =
                 "(function(){" +
 
-                "var es=Array.from(" +
+                "var elements=Array.from(" +
                 "document.querySelectorAll(" +
                 "'button,a,input[type=button]," +
                 "input[type=submit],[role=button]'" +
                 "));" +
 
-                "var b=es.find(function(e){" +
+                "var target=elements.find(function(el){" +
 
                 "var t=(" +
-                "e.innerText||" +
-                "e.textContent||" +
-                "e.value||" +
-                "e.getAttribute('aria-label')||''" +
+                "el.innerText||" +
+                "el.textContent||" +
+                "el.value||" +
+                "el.getAttribute('aria-label')||''" +
                 ").replace(/\\s+/g,' ')" +
                 ".trim().toLowerCase();" +
 
@@ -1020,9 +1176,10 @@ public class MainActivity extends Activity {
 
                 "});" +
 
-                "if(!b)return 'WAIT';" +
+                "if(!target)" +
+                "return 'WAIT';" +
 
-                "b.click();" +
+                "target.click();" +
 
                 "return 'CLICKED';" +
 
@@ -1033,7 +1190,9 @@ public class MainActivity extends Activity {
                 result -> {
 
                     if (result != null &&
-                            result.contains("CLICKED")) {
+                            result.contains(
+                                    "CLICKED"
+                            )) {
 
                         webStatus.setText(
                                 "Status: MP4 HD dipilih..."
@@ -1047,7 +1206,7 @@ public class MainActivity extends Activity {
                     } else {
 
                         handler.postDelayed(
-                                () -> findMp4Hd(0),
+                                () -> findMp4HdButton(0),
                                 500
                         );
                     }
@@ -1074,75 +1233,82 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String normalized =
+        String normalizedUrl =
                 url.trim();
 
         if (handledDownloadUrls.contains(
-                normalized
+                normalizedUrl
         )) {
             return;
         }
 
-        String mime =
+        String lowerMime =
                 mimeType == null
                         ? ""
                         : mimeType.toLowerCase(
                                 Locale.US
                         );
 
-        String disposition =
+        String lowerUrl =
+                normalizedUrl.toLowerCase(
+                        Locale.US
+                );
+
+        String lowerDisposition =
                 contentDisposition == null
                         ? ""
                         : contentDisposition.toLowerCase(
                                 Locale.US
                         );
 
-        String lowerUrl =
-                normalized.toLowerCase(
-                        Locale.US
-                );
-
-        /*
-         * SaveTikTok dapat mengirim MP4 HD
-         * sebagai application/octet-stream
-         * atau URL yang mengandung .bin.
-         *
-         * Jangan menolak .bin.
-         */
         boolean html =
-                mime.contains("text/html") ||
-                mime.contains("application/xhtml");
+                lowerMime.contains(
+                        "text/html"
+                ) ||
+                lowerMime.contains(
+                        "application/xhtml"
+                );
 
         if (html) {
             return;
         }
 
         boolean explicitNonVideo =
-                mime.contains("audio/") ||
-                mime.contains("image/") ||
-                mime.contains("text/");
+                lowerMime.startsWith("audio/") ||
+                lowerMime.startsWith("image/") ||
+                lowerMime.startsWith("text/");
 
         if (explicitNonVideo) {
             return;
         }
 
-        boolean video =
-                mime.startsWith("video/") ||
-                mime.contains("mp4") ||
-                disposition.contains(".mp4") ||
+        /*
+         * SaveTikTok dapat mengirim MP4 HD sebagai:
+         *
+         * video/mp4
+         * application/octet-stream
+         * URL .bin
+         *
+         * Semua kandidat tersebut diterima setelah
+         * tombol MP4 HD diklik.
+         */
+        boolean looksLikeVideo =
+                lowerMime.startsWith("video/") ||
+                lowerMime.contains("mp4") ||
+                lowerDisposition.contains(".mp4") ||
                 lowerUrl.contains(".mp4") ||
-                mime.contains(
+                lowerMime.contains(
                         "application/octet-stream"
                 ) ||
-                disposition.contains(".bin") ||
+                lowerDisposition.contains(".bin") ||
                 lowerUrl.contains(".bin");
 
-        if (!video) {
+        if (!looksLikeVideo) {
             return;
         }
 
         handledDownloadUrls.add(
-                normalized
+                normalizedUrl
         );
 
         if (handledDownloadUrls.size() > 30) {
@@ -1157,10 +1323,6 @@ public class MainActivity extends Activity {
             );
         }
 
-        /*
-         * Satu URL download hanya boleh
-         * diproses satu kali.
-         */
         if (downloadStarted) {
             return;
         }
@@ -1172,7 +1334,7 @@ public class MainActivity extends Activity {
         );
 
         enqueueDownload(
-                normalized,
+                normalizedUrl,
                 userAgent
         );
     }
@@ -1248,14 +1410,6 @@ public class MainActivity extends Activity {
                     SAVE_URL
             );
 
-            /*
-             * Struktur:
-             *
-             * Download/
-             *   TikTokDownloadManager/
-             *      001/
-             *         video.mp4
-             */
             String number =
                     String.format(
                             Locale.US,
@@ -1268,12 +1422,13 @@ public class MainActivity extends Activity {
                     number;
 
             /*
-             * Selalu pakai video.mp4.
-             * Nama .bin dari server tidak digunakan.
+             * Selalu gunakan nama video.mp4.
+             * Nama .bin dari server diabaikan.
              */
             request.setDestinationInExternalPublicDir(
                     Environment.DIRECTORY_DOWNLOADS,
-                    folder + "/video.mp4"
+                    folder +
+                    "/video.mp4"
             );
 
             currentDownloadId =
@@ -1509,9 +1664,6 @@ public class MainActivity extends Activity {
                     "/TikTokDownloadManager/" +
                     number;
 
-            /*
-             * Android 10+
-             */
             if (Build.VERSION.SDK_INT >=
                     Build.VERSION_CODES.Q) {
 
@@ -1834,10 +1986,6 @@ public class MainActivity extends Activity {
     @Override
     public void onBackPressed() {
 
-        /*
-         * Karena WebView sekarang disembunyikan,
-         * tombol Back langsung mengikuti Activity.
-         */
         super.onBackPressed();
     }
 }
